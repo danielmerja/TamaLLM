@@ -31,6 +31,11 @@ const (
 	ScreenRecovery
 )
 
+// LLM Auto mode configuration
+const (
+	LLMAutoActionCooldown = 15 // Ticks between LLM auto actions
+)
+
 // Model is the main Bubble Tea model.
 type Model struct {
 	// Core components
@@ -221,7 +226,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Auto mode: LLM-driven actions
-			if m.llmAutoMode && !m.llmPending && m.engine.State.Age-m.lastLLMAction >= 15 {
+			if m.llmAutoMode && !m.llmPending && m.engine.State.Age-m.lastLLMAction >= LLMAutoActionCooldown {
 				suggested := m.engine.GetSuggestedAction()
 				if suggested != "" {
 					m.lastLLMAction = m.engine.State.Age

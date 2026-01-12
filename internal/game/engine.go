@@ -7,6 +7,15 @@ import (
 	"github.com/danielmerja/TamaLLM/internal/util"
 )
 
+// Game balance constants
+const (
+	// Action probabilities
+	ExerciseWeightLossChance = 0.4 // Chance to lose weight during exercise
+	TreatWeightGainChance    = 0.7 // Chance to gain weight from treats
+	SnackWeightGainChance    = 0.5 // Chance to gain weight from snacks
+	PlayWeightLossChance     = 0.3 // Chance to lose weight during play
+)
+
 // Engine handles game logic and state transitions.
 type Engine struct {
 	State *State
@@ -106,7 +115,7 @@ func (e *Engine) feedSnack() string {
 	e.State.Hunger = util.Clamp(e.State.Hunger+10, 0, 100)
 	e.State.Happiness = util.Clamp(e.State.Happiness+15, 0, 100)
 	// Snacks risk weight gain
-	if e.rng.Float64() < 0.5 {
+	if e.rng.Float64() < SnackWeightGainChance {
 		e.State.Weight = util.Clamp(e.State.Weight+1, 1, 20)
 	}
 	e.State.AddMemory("snack", "Enjoyed a tasty snack")
@@ -130,7 +139,7 @@ func (e *Engine) play() string {
 	e.State.Energy = util.Clamp(e.State.Energy-20, 0, 100)
 	e.State.Hunger = util.Clamp(e.State.Hunger-10, 0, 100)
 	// Playing can reduce weight
-	if e.State.Weight > 5 && e.rng.Float64() < 0.3 {
+	if e.State.Weight > 5 && e.rng.Float64() < PlayWeightLossChance {
 		e.State.Weight--
 	}
 	e.State.AddMemory("play", "Had fun playing!")
@@ -248,7 +257,7 @@ func (e *Engine) exercise() string {
 	e.State.Discipline = util.Clamp(e.State.Discipline+3, 0, 100)
 
 	// Exercise helps lose weight
-	if e.State.Weight > 5 && e.rng.Float64() < 0.4 {
+	if e.State.Weight > 5 && e.rng.Float64() < ExerciseWeightLossChance {
 		e.State.Weight--
 	}
 	e.State.AddMemory("exercise", "Had a good workout!")
@@ -335,7 +344,7 @@ func (e *Engine) treat() string {
 	e.State.Hunger = util.Clamp(e.State.Hunger+5, 0, 100)
 
 	// Treats always risk weight gain
-	if e.rng.Float64() < 0.7 {
+	if e.rng.Float64() < TreatWeightGainChance {
 		e.State.Weight = util.Clamp(e.State.Weight+1, 1, 20)
 	}
 	e.State.AddMemory("treat", "Got a special treat!")
