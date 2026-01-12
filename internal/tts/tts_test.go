@@ -227,3 +227,29 @@ func TestMockClient_StatusInfo(t *testing.T) {
 		t.Errorf("Expected 'TTS disabled (mock client)', got '%s'", status)
 	}
 }
+
+func TestIsPlaceholderText(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"...", true},
+		{"..", true},
+		{".", true},
+		{"(none)", true},
+		{"", true},
+		{"Hello world", false},
+		{"...hello", false},
+		{"Some actual message", false},
+		{"*yawns* Good morning!", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := isPlaceholderText(tt.input)
+			if result != tt.expected {
+				t.Errorf("isPlaceholderText(%q) = %v, want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}

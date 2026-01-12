@@ -182,6 +182,11 @@ func (c *SupertonicClient) Speak(ctx context.Context, text string) error {
 		return nil
 	}
 
+	// Skip meaningless placeholder text that shouldn't be spoken
+	if isPlaceholderText(cleanText) {
+		return nil
+	}
+
 	// Create a Python script that reads text from stdin (safer than embedding in script)
 	script := fmt.Sprintf(`
 import sys
@@ -373,6 +378,24 @@ func cleanTextForSpeech(text string) string {
 	// Clean up extra spaces
 	result = strings.Join(strings.Fields(result), " ")
 	return strings.TrimSpace(result)
+}
+
+// isPlaceholderText checks if the text is a meaningless placeholder that shouldn't be spoken.
+func isPlaceholderText(text string) bool {
+	// Common placeholder patterns that indicate empty/failed LLM responses
+	placeholders := []string{
+		"...",
+		"..",
+		".",
+		"(none)",
+		"",
+	}
+	for _, p := range placeholders {
+		if text == p {
+			return true
+		}
+	}
+	return false
 }
 
 // escapeForPython escapes a string for use in a Python triple-quoted string.
