@@ -599,8 +599,11 @@ func (m Model) requestLLMMessage(action string) tea.Cmd {
 		return nil
 	}
 
-	// Note: m.llmPending and m.lastLLMReq must be set by caller before calling
-	// this function, since this is a value receiver.
+	// Note: This method uses a value receiver because it follows Bubble Tea patterns
+	// where the Model is copied on each Update cycle. The caller must set m.llmPending
+	// and m.lastLLMReq before calling this function because state changes here won't
+	// persist. This design is intentional to maintain consistency with Bubble Tea's
+	// message-passing architecture.
 
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

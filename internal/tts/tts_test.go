@@ -131,3 +131,32 @@ func TestSupertonicClient_Stop(t *testing.T) {
 	// Stop should not panic even with no active process
 	client.Stop()
 }
+
+func TestIsValidVoiceStyle(t *testing.T) {
+	validStyles := []string{"M1", "M2", "M3", "M4", "M5", "F1", "F2", "F3", "F4", "F5"}
+	invalidStyles := []string{"X1", "M6", "F0", "", "invalid", "m1", "f1"}
+
+	for _, style := range validStyles {
+		if !isValidVoiceStyle(style) {
+			t.Errorf("Expected %q to be valid", style)
+		}
+	}
+
+	for _, style := range invalidStyles {
+		if isValidVoiceStyle(style) {
+			t.Errorf("Expected %q to be invalid", style)
+		}
+	}
+}
+
+func TestSupertonicClient_InvalidVoiceStyleDefaultsToF3(t *testing.T) {
+	config := DefaultConfig()
+	config.VoiceStyle = "invalid"
+
+	client := NewSupertonicClient(config)
+
+	// Client should have defaulted to F3
+	if client.config.VoiceStyle != "F3" {
+		t.Errorf("Expected voice style to default to F3, got %q", client.config.VoiceStyle)
+	}
+}

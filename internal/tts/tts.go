@@ -67,6 +67,11 @@ type SupertonicClient struct {
 
 // NewSupertonicClient creates a new Supertonic TTS client.
 func NewSupertonicClient(config Config) *SupertonicClient {
+	// Validate and sanitize voice style (must be M1-M5 or F1-F5)
+	if !isValidVoiceStyle(config.VoiceStyle) {
+		config.VoiceStyle = "F3" // Default to F3 if invalid
+	}
+
 	client := &SupertonicClient{
 		config: config,
 	}
@@ -77,6 +82,15 @@ func NewSupertonicClient(config Config) *SupertonicClient {
 	}
 
 	return client
+}
+
+// isValidVoiceStyle checks if the voice style is valid (M1-M5 or F1-F5).
+func isValidVoiceStyle(style string) bool {
+	validStyles := map[string]bool{
+		"M1": true, "M2": true, "M3": true, "M4": true, "M5": true,
+		"F1": true, "F2": true, "F3": true, "F4": true, "F5": true,
+	}
+	return validStyles[style]
 }
 
 // IsAvailable checks if Supertonic is installed and available.
@@ -108,7 +122,7 @@ func (c *SupertonicClient) Speak(ctx context.Context, text string) error {
 		return nil
 	}
 
-	// Create a Python script to synthesize and play
+	// Create a Python script that reads text from stdin (safer than embedding in script)
 	script := fmt.Sprintf(`
 import sys
 try:
@@ -126,7 +140,11 @@ try:
 
     tts = TTS(auto_download=True)
     style = tts.get_voice_style('%s')
-    text = '''%s'''
+    
+    # Read text from stdin for safety
+    text = sys.stdin.read().strip()
+    if not text:
+        sys.exit(0)
     
     wav, duration = tts.synthesize(text, voice_style=style, total_steps=3)
     
@@ -143,10 +161,13 @@ try:
 except Exception as e:
     print(f'error: {e}', file=sys.stderr)
     sys.exit(1)
-`, c.config.VoiceStyle, escapeForPython(cleanText))
+`, c.config.VoiceStyle)
 
 	cmd := exec.CommandContext(ctx, "python3", "-c", script)
 	c.currentCmd = cmd
+
+	// Pass text via stdin to avoid injection issues
+	cmd.Stdin = strings.NewReader(cleanText)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
