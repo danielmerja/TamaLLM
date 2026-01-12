@@ -178,7 +178,7 @@ func TestDefaultConfig(t *testing.T) {
 	if config.Host != "http://localhost:11434" {
 		t.Errorf("Expected default host, got: %s", config.Host)
 	}
-	if config.Model != "llama3.2:1b" {
+	if config.Model != "qwen3:1.7b" {
 		t.Errorf("Expected default model, got: %s", config.Model)
 	}
 	if config.Timeout.Seconds() != 10 {
@@ -402,5 +402,71 @@ func TestExecuteToolCall_GetSuggestedAction_None(t *testing.T) {
 	result := executeToolCall(tc, executor)
 	if result != `{"suggestion": null, "message": "no urgent action needed"}` {
 		t.Errorf("Unexpected result: %s", result)
+	}
+}
+
+func TestCleanLLMResponse(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"plain text", "Hello world", "Hello world"},
+		{"empty think tags", "<think></think>Hello world", "Hello world"},
+		{"think tags with content", "<think>reasoning here</think>Hello world", "Hello world"},
+		{"multiline think tags", "<think>\nsome\nreasoning\n</think>Hello world", "Hello world"},
+		{"only think tags", "<think>thinking</think>", ""},
+		{"empty think with newlines", "<think>\n\n</think>Response", "Response"},
+		{"no think tags", "Just a response", "Just a response"},
+		{"whitespace only after cleaning", "<think>test</think>   ", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := cleanLLMResponse(tt.input)
+			if result != tt.expected {
+				t.Errorf("cleanLLMResponse(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGenerateFallbackMessage(t *testing.T) {
+	// Test sleeping state
+	state := game.NewState("Test", "blob", 0)
+	state.IsSleeping = true
+	msg := generateFallbackMessage(state, "")
+	if msg == "" || msg == "..." {
+		t.Error("Expected non-empty fallback for sleeping state")
+	}
+
+	// Test sick state
+	state = game.NewState("Test", "blob", 0)
+	state.IsSick = true
+	msg = generateFallbackMessage(state, "")
+	if msg == "" || msg == "..." {
+		t.Error("Expected non-empty fallback for sick state")
+	}
+
+	// Test hungry state
+	state = game.NewState("Test", "blob", 0)
+	state.Hunger = 20
+	msg = generateFallbackMessage(state, "")
+	if msg == "" || msg == "..." {
+		t.Error("Expected non-empty fallback for hungry state")
+	}
+
+	// Test action-based fallback
+	state = game.NewState("Test", "blob", 0)
+	msg = generateFallbackMessage(state, "feed_meal")
+	if msg == "" || msg == "..." {
+		t.Error("Expected non-empty fallback for feed_meal action")
+	}
+
+	// Test generic fallback
+	state = game.NewState("Test", "blob", 0)
+	msg = generateFallbackMessage(state, "unknown_action")
+	if msg == "" || msg == "..." {
+		t.Error("Expected non-empty generic fallback")
 	}
 }

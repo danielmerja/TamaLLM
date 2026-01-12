@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -145,9 +146,9 @@ func (c *OllamaClient) GetPetMessage(ctx context.Context, state *game.State, act
 
 		// If no tool calls, return the message
 		if len(resp.Message.ToolCalls) == 0 {
-			content := strings.TrimSpace(resp.Message.Content)
+			content := cleanLLMResponse(resp.Message.Content)
 			if content == "" {
-				content = "..."
+				content = generateFallbackMessage(state, action)
 			}
 			return content, nil
 		}
@@ -170,9 +171,9 @@ func (c *OllamaClient) GetPetMessage(ctx context.Context, state *game.State, act
 		return "", err
 	}
 
-	content := strings.TrimSpace(resp.Message.Content)
+	content := cleanLLMResponse(resp.Message.Content)
 	if content == "" {
-		content = "..."
+		content = generateFallbackMessage(state, action)
 	}
 	return content, nil
 }
@@ -487,6 +488,80 @@ func getIntArg(args map[string]interface{}, key string) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// thinkTagRegex matches <think>...</think> tags including empty ones and multiline content.
+var thinkTagRegex = regexp.MustCompile(`(?s)<think>.*?</think>`)
+
+// cleanLLMResponse removes thinking tags and cleans up the response content.
+// qwen3 models include <think></think> tags even when thinking is disabled.
+func cleanLLMResponse(content string) string {
+	// Remove <think>...</think> tags (including empty ones)
+	content = thinkTagRegex.ReplaceAllString(content, "")
+	// Trim whitespace
+	content = strings.TrimSpace(content)
+	return content
+}
+
+// generateFallbackMessage creates a context-appropriate message when the LLM returns empty content.
+// This addresses the known issue where qwen3 + tools can produce empty output.
+func generateFallbackMessage(state *game.State, action string) string {
+	// State-based fallback messages
+	if state.IsSleeping {
+		return "Zzz... *sleeping peacefully* 💤"
+	}
+	if state.IsSick {
+		return "*sniffles* I don't feel so good..."
+	}
+	if state.Hunger < 30 {
+		return "*tummy rumbles* I'm getting hungry..."
+	}
+	if state.Energy < 30 {
+		return "*yawns* I'm feeling sleepy..."
+	}
+	if state.Happiness < 30 {
+		return "*looks down sadly* Play with me?"
+	}
+
+	// Action-based fallback messages
+	switch action {
+	case "feed_meal":
+		return "Yummy! That was tasty! 🍽️"
+	case "feed_snack":
+		return "Mmm, a snack! Thanks! 🍪"
+	case "play":
+		return "That was fun! Let's play more! 🎮"
+	case "clean":
+		return "Ah, so fresh and clean! ✨"
+	case "sleep":
+		return "*yawns* Goodnight... 💤"
+	case "wake":
+		return "*stretches* Good morning! ☀️"
+	case "medicine":
+		return "*makes a face* Yucky, but I feel better!"
+	case "praise":
+		return "*wiggles happily* Thank you!"
+	case "scold":
+		return "*looks down* Sorry..."
+	case "exercise":
+		return "*panting* What a workout! 💪"
+	case "explore":
+		return "*looks around excitedly* So much to see!"
+	case "train":
+		return "*concentrates* I'm learning!"
+	case "treat":
+		return "*munches happily* Best treat ever! 🍬"
+	case "hatched":
+		return "Hello world! I'm so happy to meet you! 🐣"
+	}
+
+	// Generic fallback based on happiness
+	if state.Happiness >= 70 {
+		return "*happy chirp* Life is good! 😊"
+	} else if state.Happiness >= 40 {
+		return "*looks around* Hmm, what to do..."
+	}
+	return "*tilts head curiously*"
 }
 
 // MockClient is a mock implementation for testing and no-LLM mode.
