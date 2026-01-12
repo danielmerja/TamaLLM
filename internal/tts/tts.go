@@ -136,7 +136,22 @@ func checkSupertonic() (available bool, useUV bool, pythonCmd string, errorMsg s
 	}
 
 	// Build error message with details about what was tried
-	return false, false, "", fmt.Sprintf("supertonic not found (tried: uv run python3 [%s], python3 [%s], python [%s])", uvError, python3Error, pythonError)
+	// Format errors more clearly, only showing non-empty errors
+	var errs []string
+	if uvError != "" {
+		errs = append(errs, "uv run python3: "+uvError)
+	}
+	if python3Error != "" {
+		errs = append(errs, "python3: "+python3Error)
+	}
+	if pythonError != "" {
+		errs = append(errs, "python: "+pythonError)
+	}
+	errDetails := "no errors captured"
+	if len(errs) > 0 {
+		errDetails = strings.Join(errs, "; ")
+	}
+	return false, false, "", fmt.Sprintf("supertonic not found (%s)", errDetails)
 }
 
 // IsAvailable checks if Supertonic is installed and available.
@@ -210,9 +225,11 @@ except Exception as e:
 
 	// Use uv run if available (for uv-managed environments), otherwise direct python/python3
 	var cmd *exec.Cmd
+	// pythonCmd is set by IsAvailable() which must be called before Speak()
+	// The fallback to "python3" is defensive and shouldn't normally be reached
 	pythonCmd := c.pythonCmd
 	if pythonCmd == "" {
-		pythonCmd = "python3" // fallback
+		pythonCmd = "python3"
 	}
 	if c.useUV {
 		cmd = exec.CommandContext(ctx, "uv", "run", pythonCmd, "-c", script)
