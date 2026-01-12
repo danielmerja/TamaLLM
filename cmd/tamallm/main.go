@@ -20,6 +20,7 @@ func main() {
 	hostURL := flag.String("host", "", "Override Ollama host URL")
 	tickMs := flag.Int("tick-ms", 1000, "Simulation tick interval in milliseconds")
 	noLLM := flag.Bool("no-llm", false, "Run without LLM (use canned messages)")
+	autoMode := flag.Bool("auto", false, "Start with LLM auto mode enabled")
 	flag.Parse()
 
 	// Get configuration from environment/flags
@@ -53,6 +54,9 @@ func main() {
 	}
 	if *noLLM {
 		config.LLMEnabled = false
+	}
+	if *autoMode && !*noLLM {
+		config.LLMAutoMode = true
 	}
 	config.StartNew = *startNew
 

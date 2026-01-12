@@ -535,3 +535,194 @@ func TestEngine_FullEvolutionCycle(t *testing.T) {
 		t.Errorf("Expected adult stage, got %s", state.Stage)
 	}
 }
+
+func TestEngine_Exercise(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.Happiness = 50
+	state.Energy = 50
+	state.Hunger = 50
+	state.Health = 50
+	state.Discipline = 50
+	engine := NewEngine(state)
+
+	engine.PerformAction(ActionExercise)
+
+	if state.Happiness != 65 { // +15
+		t.Errorf("Expected happiness 65, got %d", state.Happiness)
+	}
+	if state.Energy != 25 { // -25
+		t.Errorf("Expected energy 25, got %d", state.Energy)
+	}
+	if state.Hunger != 35 { // -15
+		t.Errorf("Expected hunger 35, got %d", state.Hunger)
+	}
+	if state.Health != 55 { // +5
+		t.Errorf("Expected health 55, got %d", state.Health)
+	}
+	if state.Discipline != 53 { // +3
+		t.Errorf("Expected discipline 53, got %d", state.Discipline)
+	}
+}
+
+func TestEngine_ExerciseWhenTired(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.Energy = 10
+	engine := NewEngine(state)
+
+	result := engine.PerformAction(ActionExercise)
+
+	if result != "Too tired to exercise..." {
+		t.Errorf("Expected tired message, got '%s'", result)
+	}
+}
+
+func TestEngine_Explore(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.Happiness = 50
+	state.Energy = 50
+	state.Hunger = 50
+	engine := NewEngine(state)
+
+	engine.PerformAction(ActionExplore)
+
+	if state.Happiness < 50 { // Should increase or stay same
+		t.Errorf("Expected happiness >= 50, got %d", state.Happiness)
+	}
+	if state.Energy != 40 { // -10
+		t.Errorf("Expected energy 40, got %d", state.Energy)
+	}
+}
+
+func TestEngine_Train(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.Energy = 50
+	state.Discipline = 50
+	engine := NewEngine(state)
+
+	engine.PerformAction(ActionTrain)
+
+	if state.Energy != 35 { // -15
+		t.Errorf("Expected energy 35, got %d", state.Energy)
+	}
+	if state.Discipline != 58 { // +8
+		t.Errorf("Expected discipline 58, got %d", state.Discipline)
+	}
+}
+
+func TestEngine_Treat(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.Happiness = 50
+	state.Hunger = 50
+	engine := NewEngine(state)
+
+	engine.PerformAction(ActionTreat)
+
+	if state.Happiness != 70 { // +20
+		t.Errorf("Expected happiness 70, got %d", state.Happiness)
+	}
+	if state.Hunger != 55 { // +5
+		t.Errorf("Expected hunger 55, got %d", state.Hunger)
+	}
+}
+
+func TestEngine_ValidActions(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.Energy = 50
+	engine := NewEngine(state)
+
+	actions := engine.ValidActions()
+
+	// Should include basic actions
+	expected := map[string]bool{
+		"feed_meal": true, "feed_snack": true, "play": true, "clean": true,
+		"praise": true, "scold": true, "exercise": true, "explore": true,
+		"train": true, "treat": true, "sleep": true,
+	}
+
+	for _, action := range actions {
+		if !expected[action] && action != "medicine" && action != "wake" {
+			t.Errorf("Unexpected action: %s", action)
+		}
+	}
+}
+
+func TestEngine_ValidActionsWhileSleeping(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.IsSleeping = true
+	engine := NewEngine(state)
+
+	actions := engine.ValidActions()
+
+	// Should only have wake
+	if len(actions) != 1 || actions[0] != "wake" {
+		t.Errorf("Expected only wake action while sleeping, got: %v", actions)
+	}
+}
+
+func TestEngine_RequestAction(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.Hunger = 50
+	engine := NewEngine(state)
+
+	success, result := engine.RequestAction("feed_meal")
+
+	if !success {
+		t.Error("Expected success")
+	}
+	if result == "" {
+		t.Error("Expected non-empty result")
+	}
+	if state.Hunger != 80 { // +30
+		t.Errorf("Expected hunger 80, got %d", state.Hunger)
+	}
+}
+
+func TestEngine_RequestActionUnknown(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	engine := NewEngine(state)
+
+	success, result := engine.RequestAction("unknown_action")
+
+	if success {
+		t.Error("Expected failure for unknown action")
+	}
+	if result == "" {
+		t.Error("Expected error message")
+	}
+}
+
+func TestEngine_GetSuggestedAction(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.IsSick = true
+	engine := NewEngine(state)
+
+	suggested := engine.GetSuggestedAction()
+
+	if suggested != "medicine" {
+		t.Errorf("Expected medicine suggestion when sick, got: %s", suggested)
+	}
+}
+
+func TestEngine_GetSuggestedActionHungry(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	state.Hunger = 20
+	engine := NewEngine(state)
+
+	suggested := engine.GetSuggestedAction()
+
+	if suggested != "feed_meal" {
+		t.Errorf("Expected feed_meal suggestion when hungry, got: %s", suggested)
+	}
+}
+
+func TestEngine_GetSuggestedActionNone(t *testing.T) {
+	state := NewState("Test", "blob", 0)
+	// Default state has good stats
+	engine := NewEngine(state)
+
+	suggested := engine.GetSuggestedAction()
+
+	if suggested != "" {
+		t.Errorf("Expected no suggestion with good stats, got: %s", suggested)
+	}
+}

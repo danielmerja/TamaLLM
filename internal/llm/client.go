@@ -46,6 +46,9 @@ type ToolExecutor interface {
 	ProposeEvent(eventType string, severity int, description string) (bool, string)
 	SetMood(mood, emoji string, intensity int) bool
 	SummarizeState() string
+	RequestAction(actionName string) (bool, string)
+	ValidActions() []string
+	GetSuggestedAction() string
 }
 
 // OllamaClient implements the Client interface using Ollama API.
@@ -379,6 +382,42 @@ func getToolDefinitions() []Tool {
 				},
 			},
 		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "request_action",
+				Description: "Request to perform an action for the pet. Actions: feed_meal, feed_snack, play, clean, sleep, wake, medicine, praise, scold, exercise, explore, train, treat",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"action": map[string]interface{}{"type": "string", "description": "Action to perform (e.g., feed_meal, play, sleep)"},
+					},
+					"required": []string{"action"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "get_valid_actions",
+				Description: "Get list of currently valid actions the pet can perform",
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "get_suggested_action",
+				Description: "Get a suggested action based on the pet's current needs",
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+				},
+			},
+		},
 	}
 }
 
@@ -412,6 +451,23 @@ func executeToolCall(tc ToolCall, engine ToolExecutor) string {
 	case "summarize_state":
 		summary := engine.SummarizeState()
 		return fmt.Sprintf(`{"summary": "%s"}`, summary)
+
+	case "request_action":
+		actionName, _ := args["action"].(string)
+		success, result := engine.RequestAction(actionName)
+		return fmt.Sprintf(`{"success": %t, "result": "%s"}`, success, result)
+
+	case "get_valid_actions":
+		actions := engine.ValidActions()
+		actionsJSON, _ := json.Marshal(actions)
+		return fmt.Sprintf(`{"actions": %s}`, actionsJSON)
+
+	case "get_suggested_action":
+		suggested := engine.GetSuggestedAction()
+		if suggested == "" {
+			return `{"suggestion": null, "message": "no urgent action needed"}`
+		}
+		return fmt.Sprintf(`{"suggestion": "%s"}`, suggested)
 
 	default:
 		return `{"error": "unknown tool"}`

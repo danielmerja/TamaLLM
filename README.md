@@ -50,6 +50,7 @@ go run ./cmd/tamallm --no-llm
 | `↑/k`, `↓/j` | Navigate menus |
 | `Esc` / `Backspace` | Go back |
 | `m` | Open action menu |
+| `a` | Toggle LLM auto mode |
 | `?` | Toggle help |
 | `d` | Toggle debug mode |
 | `q` | Quit (auto-saves) |
@@ -91,12 +92,23 @@ Keep these stats healthy (above 30) to keep your pet happy:
 |--------|--------|
 | Feed Meal | +30 Hunger, +5 Happiness, +1 Weight |
 | Feed Snack | +10 Hunger, +15 Happiness, chance +1 Weight |
+| Give Treat | +20 Happiness, +5 Hunger, high chance +1 Weight |
 | Play | +25 Happiness, -20 Energy, -10 Hunger |
+| Exercise | +15 Happiness, -25 Energy, -15 Hunger, +5 Health, +3 Discipline |
+| Explore | +10 Happiness, -10 Energy, random encounters |
+| Train | +8 Discipline, -15 Energy |
 | Clean | +40 Hygiene, +5 Happiness |
 | Sleep | Restores Energy over time |
 | Medicine | Cures sickness, +20 Health |
 | Praise | +10 Happiness, slight -2 Discipline |
 | Scold | +10 Discipline, -15 Happiness |
+
+### LLM Auto Mode
+
+Press `a` or start with `--auto` to enable LLM-driven automatic care:
+- The LLM will automatically perform actions when needed
+- It uses the `get_suggested_action` tool to determine the best action
+- Great for letting your pet care for itself while you watch!
 
 ## Configuration
 
@@ -120,6 +132,7 @@ Flags:
   --host URL      Override Ollama host URL
   --tick-ms N     Simulation tick interval (default: 1000)
   --no-llm        Run without LLM (use canned messages)
+  --auto          Start with LLM auto mode enabled
 ```
 
 ### Recommended Models
@@ -197,7 +210,7 @@ The TUI follows Bubble Tea best practices:
 The LLM integration is:
 - **Safe** - Tool calls are validated and bounded
 - **Optional** - Game works fine without LLM
-- **Deterministic** - LLM cannot directly change game state
+- **Action-driven** - LLM can request actions through validated tools
 - **Interface-driven** - Easy to mock for testing
 
 ### Tool Calling
@@ -210,6 +223,9 @@ When tool calling is enabled, the LLM can use these tools:
 | `propose_event(type, severity, desc)` | Propose game event | Validated by engine |
 | `set_mood(mood, emoji, intensity)` | Set UI mood display | UI-only |
 | `summarize_state()` | Get state summary | Read-only |
+| `request_action(action)` | Request to perform an action | Validated and executed |
+| `get_valid_actions()` | Get list of currently valid actions | Read-only |
+| `get_suggested_action()` | Get suggested action based on needs | Read-only |
 
 ## Save File
 

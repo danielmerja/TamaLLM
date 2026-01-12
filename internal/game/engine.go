@@ -7,6 +7,15 @@ import (
 	"github.com/danielmerja/TamaLLM/internal/util"
 )
 
+// Game balance constants
+const (
+	// Action probabilities
+	ExerciseWeightLossChance = 0.4 // Chance to lose weight during exercise
+	TreatWeightGainChance    = 0.7 // Chance to gain weight from treats
+	SnackWeightGainChance    = 0.5 // Chance to gain weight from snacks
+	PlayWeightLossChance     = 0.3 // Chance to lose weight during play
+)
+
 // Engine handles game logic and state transitions.
 type Engine struct {
 	State *State
@@ -38,6 +47,10 @@ const (
 	ActionMedicine   Action = "medicine"
 	ActionScold      Action = "scold"
 	ActionPraise     Action = "praise"
+	ActionExercise   Action = "exercise"
+	ActionExplore    Action = "explore"
+	ActionTrain      Action = "train"
+	ActionTreat      Action = "treat"
 )
 
 // PerformAction executes a player action and returns a description.
@@ -65,6 +78,14 @@ func (e *Engine) PerformAction(action Action) string {
 		return e.scold()
 	case ActionPraise:
 		return e.praise()
+	case ActionExercise:
+		return e.exercise()
+	case ActionExplore:
+		return e.explore()
+	case ActionTrain:
+		return e.train()
+	case ActionTreat:
+		return e.treat()
 	default:
 		return "Unknown action"
 	}
@@ -94,7 +115,7 @@ func (e *Engine) feedSnack() string {
 	e.State.Hunger = util.Clamp(e.State.Hunger+10, 0, 100)
 	e.State.Happiness = util.Clamp(e.State.Happiness+15, 0, 100)
 	// Snacks risk weight gain
-	if e.rng.Float64() < 0.5 {
+	if e.rng.Float64() < SnackWeightGainChance {
 		e.State.Weight = util.Clamp(e.State.Weight+1, 1, 20)
 	}
 	e.State.AddMemory("snack", "Enjoyed a tasty snack")
@@ -118,7 +139,7 @@ func (e *Engine) play() string {
 	e.State.Energy = util.Clamp(e.State.Energy-20, 0, 100)
 	e.State.Hunger = util.Clamp(e.State.Hunger-10, 0, 100)
 	// Playing can reduce weight
-	if e.State.Weight > 5 && e.rng.Float64() < 0.3 {
+	if e.State.Weight > 5 && e.rng.Float64() < PlayWeightLossChance {
 		e.State.Weight--
 	}
 	e.State.AddMemory("play", "Had fun playing!")
@@ -214,6 +235,124 @@ func (e *Engine) praise() string {
 		return "*bounces happily* Yay!"
 	}
 	return "*smiles* Thank you!"
+}
+
+func (e *Engine) exercise() string {
+	if e.State.IsSleeping {
+		return "Can't exercise while sleeping!"
+	}
+	if e.State.Energy < 20 {
+		e.State.AddMemory("exercise", "Too tired to exercise")
+		return "Too tired to exercise..."
+	}
+	if e.State.IsSick {
+		e.State.AddMemory("exercise", "Too sick to exercise")
+		return "Don't feel well enough to exercise..."
+	}
+
+	e.State.Happiness = util.Clamp(e.State.Happiness+15, 0, 100)
+	e.State.Energy = util.Clamp(e.State.Energy-25, 0, 100)
+	e.State.Hunger = util.Clamp(e.State.Hunger-15, 0, 100)
+	e.State.Health = util.Clamp(e.State.Health+5, 0, 100)
+	e.State.Discipline = util.Clamp(e.State.Discipline+3, 0, 100)
+
+	// Exercise helps lose weight
+	if e.State.Weight > 5 && e.rng.Float64() < ExerciseWeightLossChance {
+		e.State.Weight--
+	}
+	e.State.AddMemory("exercise", "Had a good workout!")
+
+	if e.State.Personality.Boldness > 60 {
+		return "*flexes proudly* Getting stronger!"
+	}
+	return "That was a good workout!"
+}
+
+func (e *Engine) explore() string {
+	if e.State.IsSleeping {
+		return "Can't explore while sleeping!"
+	}
+	if e.State.Energy < 15 {
+		e.State.AddMemory("explore", "Too tired to explore")
+		return "Too tired to explore..."
+	}
+
+	e.State.Happiness = util.Clamp(e.State.Happiness+10, 0, 100)
+	e.State.Energy = util.Clamp(e.State.Energy-10, 0, 100)
+	e.State.Hunger = util.Clamp(e.State.Hunger-5, 0, 100)
+
+	// Random exploration outcomes
+	roll := e.rng.Float64()
+	if roll < 0.2 {
+		// Found something good
+		e.State.Happiness = util.Clamp(e.State.Happiness+10, 0, 100)
+		e.State.AddMemory("explore", "Found something interesting!")
+		return "*excited* Look what I found!"
+	} else if roll < 0.35 {
+		// Got a bit dirty
+		e.State.Hygiene = util.Clamp(e.State.Hygiene-15, 0, 100)
+		e.State.AddMemory("explore", "Got dirty while exploring")
+		return "*covered in dust* Oops, got a bit messy..."
+	} else if roll < 0.45 {
+		// Small scare
+		if e.State.Personality.Boldness < 40 {
+			e.State.Happiness = util.Clamp(e.State.Happiness-5, 0, 100)
+			e.State.AddMemory("explore", "Got startled while exploring")
+			return "*jumps back* That was scary!"
+		}
+		e.State.AddMemory("explore", "Had an adventure!")
+		return "What an adventure!"
+	}
+
+	e.State.AddMemory("explore", "Explored around")
+	if e.State.Personality.Independence > 60 {
+		return "*wanders happily* So much to see!"
+	}
+	return "That was fun exploring!"
+}
+
+func (e *Engine) train() string {
+	if e.State.IsSleeping {
+		return "Can't train while sleeping!"
+	}
+	if e.State.Energy < 15 {
+		e.State.AddMemory("train", "Too tired to train")
+		return "Too tired to train..."
+	}
+
+	e.State.Energy = util.Clamp(e.State.Energy-15, 0, 100)
+	e.State.Discipline = util.Clamp(e.State.Discipline+8, 0, 100)
+
+	// Training success based on discipline
+	if e.State.Discipline > 50 || e.rng.Float64() < 0.6 {
+		e.State.Happiness = util.Clamp(e.State.Happiness+5, 0, 100)
+		e.State.AddMemory("train", "Learned something new!")
+		return "*proud* I did it! I learned something!"
+	}
+
+	e.State.Happiness = util.Clamp(e.State.Happiness-3, 0, 100)
+	e.State.AddMemory("train", "Training was tough")
+	return "*struggles* Training is hard..."
+}
+
+func (e *Engine) treat() string {
+	if e.State.IsSleeping {
+		return "Can't give treats while sleeping!"
+	}
+
+	e.State.Happiness = util.Clamp(e.State.Happiness+20, 0, 100)
+	e.State.Hunger = util.Clamp(e.State.Hunger+5, 0, 100)
+
+	// Treats always risk weight gain
+	if e.rng.Float64() < TreatWeightGainChance {
+		e.State.Weight = util.Clamp(e.State.Weight+1, 1, 20)
+	}
+	e.State.AddMemory("treat", "Got a special treat!")
+
+	if e.State.Personality.Playfulness > 60 {
+		return "*does a happy dance* Best day ever!"
+	}
+	return "*munches happily* Yummy treat!"
 }
 
 // Tick advances the game state by one tick (typically 1 second).
@@ -404,33 +543,83 @@ func (e *Engine) checkRandomEvents() {
 
 	e.lastRandomEvent = e.tickCount
 
-	// Pick a random event
+	// Pick a random event based on stage
 	events := []struct {
 		chance float64
 		apply  func()
 	}{
-		{0.3, func() {
+		{0.15, func() {
 			e.State.Happiness = util.Clamp(e.State.Happiness+5, 0, 100)
 			e.State.AddMemory("random", "Found something fun!")
 		}},
-		{0.2, func() {
+		{0.10, func() {
 			e.State.Hunger = util.Clamp(e.State.Hunger-5, 0, 100)
-			e.State.AddMemory("random", "Got extra hungry from exercise")
+			e.State.AddMemory("random", "Got extra hungry from activity")
 		}},
-		{0.2, func() {
+		{0.10, func() {
 			e.State.Hygiene = util.Clamp(e.State.Hygiene-10, 0, 100)
 			e.State.AddMemory("random", "Made a mess playing")
 		}},
-		{0.15, func() {
+		{0.10, func() {
 			if e.State.Stage != StageEgg && e.State.Personality.Playfulness > 50 {
 				e.State.Happiness = util.Clamp(e.State.Happiness+10, 0, 100)
 				e.State.AddMemory("random", "Had a burst of joy!")
 			}
 		}},
-		{0.15, func() {
+		{0.08, func() {
 			if e.State.Personality.Independence < 30 {
 				e.State.Happiness = util.Clamp(e.State.Happiness-5, 0, 100)
 				e.State.AddMemory("random", "Felt lonely")
+			}
+		}},
+		// New events
+		{0.08, func() {
+			if e.State.Stage != StageEgg && !e.State.IsSleeping {
+				e.State.Energy = util.Clamp(e.State.Energy+5, 0, 100)
+				e.State.AddMemory("random", "Took a refreshing nap")
+			}
+		}},
+		{0.07, func() {
+			if e.State.Stage == StageAdult || e.State.Stage == StageTeen {
+				e.State.Discipline = util.Clamp(e.State.Discipline+3, 0, 100)
+				e.State.AddMemory("random", "Had a moment of self-reflection")
+			}
+		}},
+		{0.06, func() {
+			if e.State.Stage != StageEgg && e.State.Hygiene > 50 {
+				e.State.Hygiene = util.Clamp(e.State.Hygiene-20, 0, 100)
+				e.State.AddMemory("random", "Rolled in something stinky!")
+			}
+		}},
+		{0.06, func() {
+			if e.State.Stage != StageEgg && e.State.Personality.Boldness > 60 {
+				e.State.Happiness = util.Clamp(e.State.Happiness+8, 0, 100)
+				e.State.Energy = util.Clamp(e.State.Energy-5, 0, 100)
+				e.State.AddMemory("random", "Had an exciting adventure!")
+			}
+		}},
+		{0.05, func() {
+			if e.State.Stage != StageEgg && e.State.Health > 70 {
+				e.State.Health = util.Clamp(e.State.Health+3, 0, 100)
+				e.State.AddMemory("random", "Feeling extra healthy today!")
+			}
+		}},
+		{0.05, func() {
+			if e.State.Stage == StageChild || e.State.Stage == StageTeen {
+				e.State.Discipline = util.Clamp(e.State.Discipline-3, 0, 100)
+				e.State.AddMemory("random", "Got into a bit of mischief")
+			}
+		}},
+		{0.05, func() {
+			if !e.State.IsSleeping && e.State.Happiness > 60 {
+				e.State.Happiness = util.Clamp(e.State.Happiness+5, 0, 100)
+				e.State.AddMemory("random", "Remembered a happy moment")
+			}
+		}},
+		{0.05, func() {
+			if e.State.Stage != StageEgg && e.State.Energy < 70 {
+				e.State.Energy = util.Clamp(e.State.Energy+10, 0, 100)
+				e.State.AddMemory("random", "Got a second wind!")
 			}
 		}},
 	}
@@ -534,4 +723,108 @@ func (e *Engine) RandInt(min, max int) int {
 		min, max = max, min
 	}
 	return min + e.rng.Intn(max-min+1)
+}
+
+// ValidActions returns a list of currently valid actions the pet can perform.
+func (e *Engine) ValidActions() []string {
+	if !e.State.Alive {
+		return nil
+	}
+
+	actions := []string{}
+
+	if !e.State.IsSleeping {
+		actions = append(actions, "feed_meal", "feed_snack", "play", "clean", "praise", "scold", "exercise", "explore", "train", "treat")
+		if e.State.Energy <= 80 {
+			actions = append(actions, "sleep")
+		}
+		if e.State.IsSick {
+			actions = append(actions, "medicine")
+		}
+	} else {
+		actions = append(actions, "wake")
+	}
+
+	return actions
+}
+
+// RequestAction allows the LLM to request an action be performed.
+// Returns success status, result message, and whether the action was valid.
+func (e *Engine) RequestAction(actionName string) (bool, string) {
+	if !e.State.Alive {
+		return false, "pet is not alive"
+	}
+
+	// Map string to Action type
+	var action Action
+	switch actionName {
+	case "feed_meal":
+		action = ActionFeedMeal
+	case "feed_snack":
+		action = ActionFeedSnack
+	case "play":
+		action = ActionPlay
+	case "clean":
+		action = ActionClean
+	case "sleep":
+		action = ActionSleep
+	case "wake":
+		action = ActionWake
+	case "medicine":
+		action = ActionMedicine
+	case "scold":
+		action = ActionScold
+	case "praise":
+		action = ActionPraise
+	case "exercise":
+		action = ActionExercise
+	case "explore":
+		action = ActionExplore
+	case "train":
+		action = ActionTrain
+	case "treat":
+		action = ActionTreat
+	default:
+		return false, "unknown action: " + actionName
+	}
+
+	// Perform the action
+	result := e.PerformAction(action)
+	return true, result
+}
+
+// GetSuggestedAction returns a suggested action based on current state.
+// This helps the LLM make better decisions.
+func (e *Engine) GetSuggestedAction() string {
+	if !e.State.Alive {
+		return ""
+	}
+
+	// Priority-based suggestions
+	if e.State.IsSick {
+		return "medicine"
+	}
+	if e.State.Hunger < 25 {
+		return "feed_meal"
+	}
+	if e.State.Energy < 20 && !e.State.IsSleeping {
+		return "sleep"
+	}
+	if e.State.IsSleeping && e.State.Energy >= 70 {
+		return "wake"
+	}
+	if e.State.Hygiene < 30 {
+		return "clean"
+	}
+	if e.State.Happiness < 30 && e.State.Energy >= 30 {
+		return "play"
+	}
+	if e.State.Health < 50 && e.State.Energy >= 30 {
+		return "exercise"
+	}
+	if e.State.Discipline < 40 && e.State.Energy >= 20 {
+		return "train"
+	}
+
+	return ""
 }
