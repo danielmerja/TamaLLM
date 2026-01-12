@@ -164,12 +164,18 @@ func TestSupertonicClient_InvalidVoiceStyleDefaultsToF3(t *testing.T) {
 func TestCheckSupertonic(t *testing.T) {
 	// This test just verifies the function returns consistent values
 	// The actual behavior depends on whether uv and/or supertonic are installed
-	available, useUV := checkSupertonic()
+	available, useUV, errMsg := checkSupertonic()
 
-	// If available, useUV should be either true or false
-	// If not available, useUV should be false
+	// If available, useUV should be either true or false, errMsg should be empty
+	// If not available, useUV should be false, errMsg should contain info
 	if !available && useUV {
 		t.Error("useUV should be false when supertonic is not available")
+	}
+	if available && errMsg != "" {
+		t.Error("errMsg should be empty when supertonic is available")
+	}
+	if !available && errMsg == "" {
+		t.Error("errMsg should contain info when supertonic is not available")
 	}
 }
 
@@ -182,8 +188,36 @@ func TestSupertonicClient_UseUVFlag(t *testing.T) {
 	_ = client.IsAvailable()
 
 	// Verify the useUV flag matches what checkSupertonic returns
-	_, expectedUseUV := checkSupertonic()
+	_, expectedUseUV, _ := checkSupertonic()
 	if client.useUV != expectedUseUV {
 		t.Errorf("Expected useUV to be %v, got %v", expectedUseUV, client.useUV)
+	}
+}
+
+func TestSupertonicClient_StatusInfo(t *testing.T) {
+	// Test disabled client
+	config := DefaultConfig()
+	config.Enabled = false
+	client := NewSupertonicClient(config)
+	status := client.StatusInfo()
+	if status != "TTS disabled" {
+		t.Errorf("Expected 'TTS disabled', got '%s'", status)
+	}
+
+	// Test enabled client (availability depends on environment)
+	config.Enabled = true
+	client = NewSupertonicClient(config)
+	status = client.StatusInfo()
+	// Status should contain useful info either way
+	if status == "" {
+		t.Error("StatusInfo should not be empty")
+	}
+}
+
+func TestMockClient_StatusInfo(t *testing.T) {
+	client := NewMockClient()
+	status := client.StatusInfo()
+	if status != "TTS disabled (mock client)" {
+		t.Errorf("Expected 'TTS disabled (mock client)', got '%s'", status)
 	}
 }

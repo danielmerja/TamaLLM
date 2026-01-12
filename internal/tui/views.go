@@ -195,7 +195,13 @@ func (m Model) renderDebug() string {
 	var b strings.Builder
 	b.WriteString("=== DEBUG ===\n")
 	b.WriteString(fmt.Sprintf("LLM Enabled: %t | Pending: %t | Auto: %t\n", m.llmEnabled, m.llmPending, m.llmAutoMode))
-	b.WriteString(fmt.Sprintf("TTS Enabled: %t\n", m.ttsEnabled))
+	
+	// Show TTS status with detailed info
+	ttsStatus := "disabled"
+	if m.ttsEnabled && m.tts != nil {
+		ttsStatus = m.tts.StatusInfo()
+	}
+	b.WriteString(fmt.Sprintf("TTS: %s\n", ttsStatus))
 
 	// Show placeholder text for empty values to make it clear the fields exist
 	lastReq := m.lastLLMReq
@@ -208,6 +214,13 @@ func (m Model) renderDebug() string {
 	}
 	b.WriteString(fmt.Sprintf("Last LLM Input: %s\n", lastReq))
 	b.WriteString(fmt.Sprintf("Last LLM Output: %s\n", lastResp))
+	
+	// Show pet message separately for clarity
+	petMsg := m.petMessage
+	if petMsg == "" {
+		petMsg = "(none)"
+	}
+	b.WriteString(fmt.Sprintf("Pet Said: \"%s\"\n", petMsg))
 
 	b.WriteString(fmt.Sprintf("Age: %d | Stage: %s\n", m.engine.State.Age, m.engine.State.Stage))
 	b.WriteString(fmt.Sprintf("Care Score: %.1f | Sickness Events: %d\n",

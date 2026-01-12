@@ -53,6 +53,8 @@ type Client interface {
 	IsAvailable() bool
 	// Stop stops any currently playing audio.
 	Stop()
+	// StatusInfo returns human-readable status information for debugging.
+	StatusInfo() string
 }
 
 // SupertonicClient implements TTS using Supertonic-2 via Python.
@@ -63,7 +65,8 @@ type SupertonicClient struct {
 	available  bool
 	checkOnce  sync.Once
 	currentCmd *exec.Cmd
-	useUV      bool // whether to use "uv run python3" instead of "python3"
+	useUV      bool   // whether to use "uv run python3" instead of "python3"
+	lastError  string // last error message for debugging
 }
 
 // NewSupertonicClient creates a new Supertonic TTS client.
@@ -96,23 +99,39 @@ func isValidVoiceStyle(style string) bool {
 
 // checkSupertonic checks if supertonic is available and determines the Python command to use.
 // It tries uv run python3 first (for uv-managed environments), then falls back to direct python3.
-// Returns (available, useUV).
-func checkSupertonic() (available bool, useUV bool) {
+// Returns (available, useUV, errorMsg).
+func checkSupertonic() (available bool, useUV bool, errorMsg string) {
 	// First, try uv run python3 (handles uv-managed environments created with "uv venv" and "uv pip install")
 	cmd := exec.Command("uv", "run", "python3", "-c", "import supertonic; print('ok')")
 	output, err := cmd.Output()
 	if err == nil && strings.TrimSpace(string(output)) == "ok" {
-		return true, true
+		return true, true, ""
+	}
+	uvError := ""
+	if err != nil {
+		uvError = err.Error()
 	}
 
 	// Fall back to direct python3
 	cmd = exec.Command("python3", "-c", "import supertonic; print('ok')")
 	output, err = cmd.Output()
 	if err == nil && strings.TrimSpace(string(output)) == "ok" {
-		return true, false
+		return true, false, ""
+	}
+	python3Error := ""
+	if err != nil {
+		python3Error = err.Error()
 	}
 
-	return false, false
+	// Try python (some systems use python instead of python3)
+	cmd = exec.Command("python", "-c", "import supertonic; print('ok')")
+	output, err = cmd.Output()
+	if err == nil && strings.TrimSpace(string(output)) == "ok" {
+		return true, false, ""
+	}
+
+	// Build error message with details about what was tried
+	return false, false, fmt.Sprintf("supertonic not found (tried: uv run python3 [%s], python3 [%s])", uvError, python3Error)
 }
 
 // IsAvailable checks if Supertonic is installed and available.
@@ -120,7 +139,7 @@ func (c *SupertonicClient) IsAvailable() bool {
 	c.checkOnce.Do(func() {
 		// Check if Python and supertonic module are available
 		// This also determines whether to use uv or direct python3
-		c.available, c.useUV = checkSupertonic()
+		c.available, c.useUV, c.lastError = checkSupertonic()
 	})
 	return c.available
 }
@@ -236,6 +255,26 @@ func (c *SupertonicClient) stopLocked() {
 	}
 }
 
+// StatusInfo returns human-readable status information for debugging.
+func (c *SupertonicClient) StatusInfo() string {
+	if !c.config.Enabled {
+		return "TTS disabled"
+	}
+	// Trigger availability check if not done yet
+	available := c.IsAvailable()
+	if available {
+		method := "python3"
+		if c.useUV {
+			method = "uv run python3"
+		}
+		return fmt.Sprintf("Available (via %s, voice: %s)", method, c.config.VoiceStyle)
+	}
+	if c.lastError != "" {
+		return fmt.Sprintf("Unavailable: %s", c.lastError)
+	}
+	return "Unavailable (supertonic module not found)"
+}
+
 // MockClient is a mock implementation for testing and no-TTS mode.
 type MockClient struct {
 	lastText string
@@ -264,6 +303,11 @@ func (m *MockClient) IsAvailable() bool {
 
 // Stop does nothing in mock mode.
 func (m *MockClient) Stop() {}
+
+// StatusInfo returns status information for mock client.
+func (m *MockClient) StatusInfo() string {
+	return "TTS disabled (mock client)"
+}
 
 // LastText returns the last text that was "spoken" (for testing).
 func (m *MockClient) LastText() string {
