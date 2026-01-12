@@ -9,11 +9,15 @@ import (
 
 // MockToolExecutor implements ToolExecutor for testing.
 type MockToolExecutor struct {
-	randIntResult    int
-	proposeAccepted  bool
-	proposeReason    string
-	setMoodOK        bool
-	summarizeResult  string
+	randIntResult       int
+	proposeAccepted     bool
+	proposeReason       string
+	setMoodOK           bool
+	summarizeResult     string
+	requestActionResult string
+	requestActionOK     bool
+	validActions        []string
+	suggestedAction     string
 }
 
 func (m *MockToolExecutor) RandInt(min, max int) int {
@@ -30,6 +34,18 @@ func (m *MockToolExecutor) SetMood(mood, emoji string, intensity int) bool {
 
 func (m *MockToolExecutor) SummarizeState() string {
 	return m.summarizeResult
+}
+
+func (m *MockToolExecutor) RequestAction(actionName string) (bool, string) {
+	return m.requestActionOK, m.requestActionResult
+}
+
+func (m *MockToolExecutor) ValidActions() []string {
+	return m.validActions
+}
+
+func (m *MockToolExecutor) GetSuggestedAction() string {
+	return m.suggestedAction
 }
 
 func TestMockClient_GetPetMessage(t *testing.T) {
@@ -224,11 +240,11 @@ func TestDescribePersonality(t *testing.T) {
 func TestGetToolDefinitions(t *testing.T) {
 	tools := getToolDefinitions()
 
-	if len(tools) != 4 {
-		t.Errorf("Expected 4 tools, got %d", len(tools))
+	if len(tools) != 7 {
+		t.Errorf("Expected 7 tools, got %d", len(tools))
 	}
 
-	expectedNames := []string{"rand_int", "propose_event", "set_mood", "summarize_state"}
+	expectedNames := []string{"rand_int", "propose_event", "set_mood", "summarize_state", "request_action", "get_valid_actions", "get_suggested_action"}
 	for i, tool := range tools {
 		if tool.Function.Name != expectedNames[i] {
 			t.Errorf("Tool %d: expected name '%s', got '%s'", i, expectedNames[i], tool.Function.Name)
@@ -326,5 +342,65 @@ func TestExecuteToolCall_InvalidArguments(t *testing.T) {
 	result := executeToolCall(tc, executor)
 	if result == "" {
 		t.Error("Expected error result for invalid arguments")
+	}
+}
+
+func TestExecuteToolCall_RequestAction(t *testing.T) {
+	executor := &MockToolExecutor{requestActionOK: true, requestActionResult: "action executed"}
+	tc := ToolCall{
+		Function: FunctionCall{
+			Name:      "request_action",
+			Arguments: []byte(`{"action": "feed_meal"}`),
+		},
+	}
+
+	result := executeToolCall(tc, executor)
+	if result != `{"success": true, "result": "action executed"}` {
+		t.Errorf("Unexpected result: %s", result)
+	}
+}
+
+func TestExecuteToolCall_GetValidActions(t *testing.T) {
+	executor := &MockToolExecutor{validActions: []string{"feed_meal", "play", "sleep"}}
+	tc := ToolCall{
+		Function: FunctionCall{
+			Name:      "get_valid_actions",
+			Arguments: []byte(`{}`),
+		},
+	}
+
+	result := executeToolCall(tc, executor)
+	if result != `{"actions": ["feed_meal","play","sleep"]}` {
+		t.Errorf("Unexpected result: %s", result)
+	}
+}
+
+func TestExecuteToolCall_GetSuggestedAction(t *testing.T) {
+	executor := &MockToolExecutor{suggestedAction: "feed_meal"}
+	tc := ToolCall{
+		Function: FunctionCall{
+			Name:      "get_suggested_action",
+			Arguments: []byte(`{}`),
+		},
+	}
+
+	result := executeToolCall(tc, executor)
+	if result != `{"suggestion": "feed_meal"}` {
+		t.Errorf("Unexpected result: %s", result)
+	}
+}
+
+func TestExecuteToolCall_GetSuggestedAction_None(t *testing.T) {
+	executor := &MockToolExecutor{suggestedAction: ""}
+	tc := ToolCall{
+		Function: FunctionCall{
+			Name:      "get_suggested_action",
+			Arguments: []byte(`{}`),
+		},
+	}
+
+	result := executeToolCall(tc, executor)
+	if result != `{"suggestion": null, "message": "no urgent action needed"}` {
+		t.Errorf("Unexpected result: %s", result)
 	}
 }

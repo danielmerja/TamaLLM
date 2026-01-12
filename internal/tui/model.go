@@ -73,8 +73,10 @@ type Model struct {
 	saveDebounce  time.Duration
 
 	// LLM config
-	llmEnabled bool
-	llmPending bool
+	llmEnabled     bool
+	llmPending     bool
+	llmAutoMode    bool
+	lastLLMAction  int64
 
 	// Error state
 	errorMessage string
@@ -84,6 +86,7 @@ type Model struct {
 type Config struct {
 	TickInterval time.Duration
 	LLMEnabled   bool
+	LLMAutoMode  bool
 	LLMConfig    llm.Config
 	StartNew     bool
 }
@@ -93,6 +96,7 @@ func DefaultConfig() Config {
 	return Config{
 		TickInterval: time.Second,
 		LLMEnabled:   true,
+		LLMAutoMode:  false,
 		LLMConfig:    llm.DefaultConfig(),
 		StartNew:     false,
 	}
@@ -134,6 +138,7 @@ func New(config Config, store *storage.Storage) Model {
 		tickInterval:  config.TickInterval,
 		saveDebounce:  5 * time.Second,
 		llmEnabled:    config.LLMEnabled,
+		llmAutoMode:   config.LLMAutoMode,
 		petMessage:    "...",
 	}
 
@@ -214,6 +219,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.llmPending && m.engine.State.Age%10 == 0 {
 				cmds = append(cmds, m.requestLLMMessage(""))
 			}
+
+			// Auto mode: LLM-driven actions
+			if m.llmAutoMode && !m.llmPending && m.engine.State.Age-m.lastLLMAction >= 15 {
+				suggested := m.engine.GetSuggestedAction()
+				if suggested != "" {
+					m.lastLLMAction = m.engine.State.Age
+					success, result := m.engine.RequestAction(suggested)
+					if success {
+						m.statusMessage = fmt.Sprintf("[AUTO] %s: %s", suggested, result)
+						cmds = append(cmds, m.requestLLMMessage(suggested))
+					}
+				}
+			}
 		}
 		cmds = append(cmds, m.scheduleTick())
 
@@ -278,6 +296,17 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, keys.Debug):
 		m.debugMode = !m.debugMode
+		return m, nil
+
+	case key.Matches(msg, keys.Auto):
+		if m.llmEnabled && m.screen == ScreenMain {
+			m.llmAutoMode = !m.llmAutoMode
+			if m.llmAutoMode {
+				m.statusMessage = "Auto mode enabled - LLM will make decisions"
+			} else {
+				m.statusMessage = "Auto mode disabled"
+			}
+		}
 		return m, nil
 	}
 
@@ -446,7 +475,11 @@ func (m Model) getMenuItems() []menuItem {
 	items := []menuItem{
 		{name: "Feed Meal", action: game.ActionFeedMeal, icon: "🍽️"},
 		{name: "Feed Snack", action: game.ActionFeedSnack, icon: "🍪"},
+		{name: "Give Treat", action: game.ActionTreat, icon: "🍬"},
 		{name: "Play", action: game.ActionPlay, icon: "🎮"},
+		{name: "Exercise", action: game.ActionExercise, icon: "🏃"},
+		{name: "Explore", action: game.ActionExplore, icon: "🔍"},
+		{name: "Train", action: game.ActionTrain, icon: "📚"},
 		{name: "Clean", action: game.ActionClean, icon: "🛁"},
 	}
 
@@ -571,6 +604,7 @@ type keyMap struct {
 	Menu   key.Binding
 	Help   key.Binding
 	Debug  key.Binding
+	Auto   key.Binding
 	Quit   key.Binding
 }
 
@@ -610,6 +644,10 @@ var keys = keyMap{
 	Debug: key.NewBinding(
 		key.WithKeys("d"),
 		key.WithHelp("d", "debug"),
+	),
+	Auto: key.NewBinding(
+		key.WithKeys("a"),
+		key.WithHelp("a", "toggle auto mode"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),

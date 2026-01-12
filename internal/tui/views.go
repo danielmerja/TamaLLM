@@ -131,7 +131,13 @@ func (m Model) viewMain() string {
 	}
 
 	// Controls hint
-	b.WriteString(subtitleStyle.Render("Enter: Menu | ?: Help | d: Debug | q: Quit"))
+	autoStatus := ""
+	if m.llmAutoMode {
+		autoStatus = " | a: Auto [ON]"
+	} else if m.llmEnabled {
+		autoStatus = " | a: Auto [OFF]"
+	}
+	b.WriteString(subtitleStyle.Render("Enter: Menu | ?: Help | d: Debug" + autoStatus + " | q: Quit"))
 
 	// Debug panel
 	if m.debugMode {
@@ -188,12 +194,18 @@ func (m Model) renderDebug() string {
 
 	var b strings.Builder
 	b.WriteString("=== DEBUG ===\n")
-	b.WriteString(fmt.Sprintf("LLM Enabled: %t | Pending: %t\n", m.llmEnabled, m.llmPending))
+	b.WriteString(fmt.Sprintf("LLM Enabled: %t | Pending: %t | Auto: %t\n", m.llmEnabled, m.llmPending, m.llmAutoMode))
 	b.WriteString(fmt.Sprintf("Last Request: %s\n", m.lastLLMReq))
 	b.WriteString(fmt.Sprintf("Last Response: %s\n", m.lastLLMResp))
 	b.WriteString(fmt.Sprintf("Age: %d | Stage: %s\n", m.engine.State.Age, m.engine.State.Stage))
 	b.WriteString(fmt.Sprintf("Care Score: %.1f | Sickness Events: %d\n",
 		m.engine.State.AverageCareScore, m.engine.State.TotalSicknessEvents))
+	if m.llmAutoMode {
+		suggested := m.engine.GetSuggestedAction()
+		if suggested != "" {
+			b.WriteString(fmt.Sprintf("Suggested Action: %s\n", suggested))
+		}
+	}
 
 	return debugStyle.Render(b.String())
 }
@@ -260,6 +272,7 @@ func (m Model) viewHelp() string {
 		{"Enter/Space", "Select / Open menu"},
 		{"Esc/Backspace", "Go back"},
 		{"m", "Open action menu"},
+		{"a", "Toggle LLM auto mode"},
 		{"?", "Toggle help"},
 		{"d", "Toggle debug mode"},
 		{"q", "Quit (autosaves)"},
@@ -278,10 +291,14 @@ func (m Model) viewHelp() string {
 		"• Keep all stats above 30 for a healthy pet",
 		"• Feed meals for hunger, snacks for happiness",
 		"• Playing uses energy but boosts happiness",
+		"• Exercise improves health and discipline",
+		"• Explore for random discoveries",
+		"• Train to increase discipline",
 		"• Clean regularly to prevent sickness",
 		"• Let your pet sleep when tired",
 		"• Balance praise and scolding for discipline",
 		"• Your pet evolves based on care quality!",
+		"• Enable auto mode (a) for LLM-driven care",
 	}
 	for _, tip := range tips {
 		b.WriteString(tip + "\n")
