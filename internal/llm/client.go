@@ -1,0 +1,488 @@
+// Package llm provides Ollama LLM integration for TamaLLM.
+package llm
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/danielmerja/TamaLLM/internal/game"
+)
+
+// Config holds LLM client configuration.
+type Config struct {
+	Host    string        // Ollama host URL
+	Model   string        // Model name
+	Timeout time.Duration // Request timeout
+	Think   string        // Thinking mode: off, low, medium, high
+}
+
+// DefaultConfig returns the default configuration.
+func DefaultConfig() Config {
+	return Config{
+		Host:    "http://localhost:11434",
+		Model:   "llama3.2:1b",
+		Timeout: 10 * time.Second,
+		Think:   "off",
+	}
+}
+
+// Client is the interface for LLM operations.
+type Client interface {
+	// GetPetMessage generates a message from the pet's perspective.
+	GetPetMessage(ctx context.Context, state *game.State, action string, engine ToolExecutor) (string, error)
+	// IsAvailable checks if the LLM service is reachable.
+	IsAvailable(ctx context.Context) bool
+}
+
+// ToolExecutor interface for executing tools.
+type ToolExecutor interface {
+	RandInt(min, max int) int
+	ProposeEvent(eventType string, severity int, description string) (bool, string)
+	SetMood(mood, emoji string, intensity int) bool
+	SummarizeState() string
+}
+
+// OllamaClient implements the Client interface using Ollama API.
+type OllamaClient struct {
+	config     Config
+	httpClient *http.Client
+}
+
+// NewOllamaClient creates a new Ollama client.
+func NewOllamaClient(config Config) *OllamaClient {
+	return &OllamaClient{
+		config: config,
+		httpClient: &http.Client{
+			Timeout: config.Timeout,
+		},
+	}
+}
+
+// ChatMessage represents a message in the chat.
+type ChatMessage struct {
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+}
+
+// ToolCall represents a tool call from the model.
+type ToolCall struct {
+	ID       string       `json:"id,omitempty"`
+	Type     string       `json:"type,omitempty"`
+	Function FunctionCall `json:"function"`
+}
+
+// FunctionCall represents a function call.
+type FunctionCall struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+// Tool represents a tool definition.
+type Tool struct {
+	Type     string       `json:"type"`
+	Function ToolFunction `json:"function"`
+}
+
+// ToolFunction represents a function definition.
+type ToolFunction struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"`
+}
+
+// ChatRequest is the request body for Ollama chat API.
+type ChatRequest struct {
+	Model    string        `json:"model"`
+	Messages []ChatMessage `json:"messages"`
+	Tools    []Tool        `json:"tools,omitempty"`
+	Stream   bool          `json:"stream"`
+	Options  *ChatOptions  `json:"options,omitempty"`
+}
+
+// ChatOptions contains model options.
+type ChatOptions struct {
+	Temperature float64 `json:"temperature,omitempty"`
+	NumPredict  int     `json:"num_predict,omitempty"`
+}
+
+// ChatResponse is the response from Ollama chat API.
+type ChatResponse struct {
+	Model     string      `json:"model"`
+	Message   ChatMessage `json:"message"`
+	Done      bool        `json:"done"`
+	DoneReason string     `json:"done_reason,omitempty"`
+}
+
+// GetPetMessage generates a message from the pet using the LLM.
+func (c *OllamaClient) GetPetMessage(ctx context.Context, state *game.State, action string, engine ToolExecutor) (string, error) {
+	systemPrompt := buildSystemPrompt(state)
+	userContent := buildUserContent(state, action)
+
+	messages := []ChatMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userContent},
+	}
+
+	tools := getToolDefinitions()
+
+	// Agent loop with max 2 iterations
+	for i := 0; i < 2; i++ {
+		resp, err := c.chat(ctx, messages, tools)
+		if err != nil {
+			return "", err
+		}
+
+		// If no tool calls, return the message
+		if len(resp.Message.ToolCalls) == 0 {
+			content := strings.TrimSpace(resp.Message.Content)
+			if content == "" {
+				content = "..."
+			}
+			return content, nil
+		}
+
+		// Execute tool calls
+		messages = append(messages, resp.Message)
+		for _, tc := range resp.Message.ToolCalls {
+			result := executeToolCall(tc, engine)
+			messages = append(messages, ChatMessage{
+				Role:       "tool",
+				Content:    result,
+				ToolCallID: tc.ID,
+			})
+		}
+	}
+
+	// Final call without tools to get response
+	resp, err := c.chat(ctx, messages, nil)
+	if err != nil {
+		return "", err
+	}
+
+	content := strings.TrimSpace(resp.Message.Content)
+	if content == "" {
+		content = "..."
+	}
+	return content, nil
+}
+
+func (c *OllamaClient) chat(ctx context.Context, messages []ChatMessage, tools []Tool) (*ChatResponse, error) {
+	req := ChatRequest{
+		Model:    c.config.Model,
+		Messages: messages,
+		Tools:    tools,
+		Stream:   false,
+		Options: &ChatOptions{
+			Temperature: 0.7,
+			NumPredict:  100, // Keep responses short
+		},
+	}
+
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.config.Host+"/api/chat", bytes.NewReader(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	httpResp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(httpResp.Body)
+		return nil, fmt.Errorf("ollama error (status %d): %s", httpResp.StatusCode, string(body))
+	}
+
+	var resp ChatResponse
+	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &resp, nil
+}
+
+// IsAvailable checks if Ollama is reachable.
+func (c *OllamaClient) IsAvailable(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", c.config.Host+"/api/tags", nil)
+	if err != nil {
+		return false
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
+}
+
+func buildSystemPrompt(state *game.State) string {
+	// Personality description
+	personalityDesc := describePersonality(state.Personality)
+
+	return fmt.Sprintf(`You are %s, a virtual pet (%s, %s stage). You speak in first person as the pet.
+
+Personality: %s
+
+Speaking style:
+- Keep responses to 1-2 short sentences max
+- Be cute and in-character
+- Use simple words and occasional emoticons
+- React to your current state and feelings
+
+RULES:
+- You may use tools when helpful, otherwise respond normally
+- NEVER try to directly change stats - only the game engine does that
+- If you want something to happen, use propose_event tool
+- Keep responses short and sweet!
+
+Current mood: %s %s`, state.Name, state.Species, state.Stage, personalityDesc, state.Mood, state.MoodEmoji)
+}
+
+func describePersonality(p game.Personality) string {
+	var traits []string
+
+	if p.Boldness > 70 {
+		traits = append(traits, "bold and confident")
+	} else if p.Boldness < 30 {
+		traits = append(traits, "shy and timid")
+	}
+
+	if p.Independence > 70 {
+		traits = append(traits, "independent")
+	} else if p.Independence < 30 {
+		traits = append(traits, "needy and clingy")
+	}
+
+	if p.Playfulness > 70 {
+		traits = append(traits, "very playful")
+	} else if p.Playfulness < 30 {
+		traits = append(traits, "calm and serious")
+	}
+
+	if len(traits) == 0 {
+		return "balanced personality"
+	}
+	return strings.Join(traits, ", ")
+}
+
+func buildUserContent(state *game.State, action string) string {
+	// Compact state snapshot
+	stateJSON := fmt.Sprintf(`{"hunger":%d,"happiness":%d,"energy":%d,"hygiene":%d,"health":%d,"sleeping":%t,"sick":%t}`,
+		state.Hunger, state.Happiness, state.Energy, state.Hygiene, state.Health, state.IsSleeping, state.IsSick)
+
+	// Recent memory
+	memory := state.GetRecentMemory(5)
+	memoryStrs := make([]string, 0, len(memory))
+	for _, m := range memory {
+		memoryStrs = append(memoryStrs, m.Type+": "+m.Description)
+	}
+
+	// Alerts
+	alerts := state.GetAlerts()
+	alertStrs := make([]string, 0, len(alerts))
+	for _, a := range alerts {
+		alertStrs = append(alertStrs, string(a))
+	}
+
+	content := "State: " + stateJSON + "\n"
+	if len(memoryStrs) > 0 {
+		content += "Recent: " + strings.Join(memoryStrs, "; ") + "\n"
+	}
+	if len(alertStrs) > 0 {
+		content += "Alerts: " + strings.Join(alertStrs, ", ") + "\n"
+	}
+	if action != "" {
+		content += "Action: " + action + "\n"
+	}
+	content += "\nRespond as the pet (1-2 sentences):"
+
+	return content
+}
+
+func getToolDefinitions() []Tool {
+	return []Tool{
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "rand_int",
+				Description: "Generate a random integer between min and max (inclusive)",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"min": map[string]interface{}{"type": "integer", "description": "Minimum value"},
+						"max": map[string]interface{}{"type": "integer", "description": "Maximum value"},
+					},
+					"required": []string{"min", "max"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "propose_event",
+				Description: "Propose a random event to the game engine. Types: happiness_boost, energy_boost, hunger_spike. Severity 1-3 only.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"type":        map[string]interface{}{"type": "string", "description": "Event type"},
+						"severity":    map[string]interface{}{"type": "integer", "description": "Severity 1-3"},
+						"description": map[string]interface{}{"type": "string", "description": "Short description"},
+					},
+					"required": []string{"type", "severity", "description"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "set_mood",
+				Description: "Set the pet's displayed mood (UI flair only, no stat changes)",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"mood":      map[string]interface{}{"type": "string", "description": "Mood name"},
+						"emoji":     map[string]interface{}{"type": "string", "description": "Emoji to display"},
+						"intensity": map[string]interface{}{"type": "integer", "description": "Intensity 1-5"},
+					},
+					"required": []string{"mood", "emoji", "intensity"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "summarize_state",
+				Description: "Get a concise summary of the pet's current state from the game engine",
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+				},
+			},
+		},
+	}
+}
+
+func executeToolCall(tc ToolCall, engine ToolExecutor) string {
+	var args map[string]interface{}
+	if err := json.Unmarshal(tc.Function.Arguments, &args); err != nil {
+		return fmt.Sprintf(`{"error": "invalid arguments: %s"}`, err.Error())
+	}
+
+	switch tc.Function.Name {
+	case "rand_int":
+		min, _ := getIntArg(args, "min")
+		max, _ := getIntArg(args, "max")
+		result := engine.RandInt(min, max)
+		return fmt.Sprintf(`{"result": %d}`, result)
+
+	case "propose_event":
+		eventType, _ := args["type"].(string)
+		severity, _ := getIntArg(args, "severity")
+		desc, _ := args["description"].(string)
+		accepted, reason := engine.ProposeEvent(eventType, severity, desc)
+		return fmt.Sprintf(`{"accepted": %t, "reason": "%s"}`, accepted, reason)
+
+	case "set_mood":
+		mood, _ := args["mood"].(string)
+		emoji, _ := args["emoji"].(string)
+		intensity, _ := getIntArg(args, "intensity")
+		ok := engine.SetMood(mood, emoji, intensity)
+		return fmt.Sprintf(`{"ok": %t}`, ok)
+
+	case "summarize_state":
+		summary := engine.SummarizeState()
+		return fmt.Sprintf(`{"summary": "%s"}`, summary)
+
+	default:
+		return `{"error": "unknown tool"}`
+	}
+}
+
+func getIntArg(args map[string]interface{}, key string) (int, bool) {
+	v, ok := args[key]
+	if !ok {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case int:
+		return n, true
+	default:
+		return 0, false
+	}
+}
+
+// MockClient is a mock implementation for testing and no-LLM mode.
+type MockClient struct {
+	messages []string
+	index    int
+}
+
+// NewMockClient creates a new mock client with canned messages.
+func NewMockClient() *MockClient {
+	return &MockClient{
+		messages: []string{
+			"*yawns* Hi there!",
+			"I'm feeling okay today~",
+			"Play with me! 🎮",
+			"*stretches* Hmm...",
+			"Food? Yes please! 🍎",
+			"*looks around curiously*",
+			"I'm a bit tired...",
+			"Thanks for taking care of me!",
+			"*wags tail happily*",
+			"Is it snack time? 🍪",
+		},
+	}
+}
+
+// GetPetMessage returns a canned message.
+func (m *MockClient) GetPetMessage(ctx context.Context, state *game.State, action string, engine ToolExecutor) (string, error) {
+	// Select message based on state
+	if state.IsSleeping {
+		return "Zzz... *sleeping peacefully*", nil
+	}
+	if state.IsSick {
+		return "*coughs* I don't feel so good...", nil
+	}
+	if state.Hunger < 30 {
+		return "*stomach growls* So hungry...", nil
+	}
+	if state.Energy < 30 {
+		return "*yawns* So sleepy...", nil
+	}
+	if state.Happiness < 30 {
+		return "*looks sad* Play with me?", nil
+	}
+
+	// Cycle through canned messages
+	msg := m.messages[m.index]
+	m.index = (m.index + 1) % len(m.messages)
+	return msg, nil
+}
+
+// IsAvailable always returns true for mock.
+func (m *MockClient) IsAvailable(ctx context.Context) bool {
+	return true
+}
