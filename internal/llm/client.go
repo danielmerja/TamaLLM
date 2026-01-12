@@ -26,7 +26,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Host:    "http://localhost:11434",
-		Model:   "llama3.2:1b",
+		Model:   "qwen3:1.7b",
 		Timeout: 10 * time.Second,
 		Think:   "off",
 	}
