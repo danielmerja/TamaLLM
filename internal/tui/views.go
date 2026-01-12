@@ -196,8 +196,19 @@ func (m Model) renderDebug() string {
 	b.WriteString("=== DEBUG ===\n")
 	b.WriteString(fmt.Sprintf("LLM Enabled: %t | Pending: %t | Auto: %t\n", m.llmEnabled, m.llmPending, m.llmAutoMode))
 	b.WriteString(fmt.Sprintf("TTS Enabled: %t\n", m.ttsEnabled))
-	b.WriteString(fmt.Sprintf("Last LLM Input: %s\n", m.lastLLMReq))
-	b.WriteString(fmt.Sprintf("Last LLM Output: %s\n", m.lastLLMResp))
+
+	// Show placeholder text for empty values to make it clear the fields exist
+	lastReq := m.lastLLMReq
+	if lastReq == "" {
+		lastReq = "(none)"
+	}
+	lastResp := m.lastLLMResp
+	if lastResp == "" {
+		lastResp = "(none)"
+	}
+	b.WriteString(fmt.Sprintf("Last LLM Input: %s\n", lastReq))
+	b.WriteString(fmt.Sprintf("Last LLM Output: %s\n", lastResp))
+
 	b.WriteString(fmt.Sprintf("Age: %d | Stage: %s\n", m.engine.State.Age, m.engine.State.Stage))
 	b.WriteString(fmt.Sprintf("Care Score: %.1f | Sickness Events: %d\n",
 		m.engine.State.AverageCareScore, m.engine.State.TotalSicknessEvents))

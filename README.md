@@ -159,10 +159,19 @@ TamaLLM supports text-to-speech using the [Supertonic-2](https://huggingface.co/
    ```bash
    pip install supertonic sounddevice soundfile
    ```
+   
+   **Using uv (recommended):**
+   ```bash
+   uv venv
+   uv pip install supertonic sounddevice soundfile
+   ```
+
 3. Run with TTS enabled:
    ```bash
    go run ./cmd/tamallm --tts
    ```
+   
+   TamaLLM automatically detects and uses `uv run` when packages are installed via `uv pip install` in a `uv venv` environment.
 
 #### Voice Styles
 

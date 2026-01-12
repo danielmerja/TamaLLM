@@ -63,6 +63,7 @@ type SupertonicClient struct {
 	available  bool
 	checkOnce  sync.Once
 	currentCmd *exec.Cmd
+	useUV      bool // whether to use "uv run python3" instead of "python3"
 }
 
 // NewSupertonicClient creates a new Supertonic TTS client.
@@ -93,13 +94,38 @@ func isValidVoiceStyle(style string) bool {
 	return validStyles[style]
 }
 
+// getPythonCommand returns the command and args to run Python.
+// It checks if uv is available and the supertonic module is accessible via uv,
+// which handles uv-managed virtual environments (created with "uv venv" and "uv pip install").
+func getPythonCommand() (name string, args []string, useUV bool) {
+	// First, try uv run python3 (handles uv-managed environments)
+	cmd := exec.Command("uv", "run", "python3", "-c", "import supertonic; print('ok')")
+	output, err := cmd.Output()
+	if err == nil && strings.TrimSpace(string(output)) == "ok" {
+		return "uv", []string{"run", "python3"}, true
+	}
+
+	// Fall back to direct python3
+	return "python3", []string{}, false
+}
+
 // IsAvailable checks if Supertonic is installed and available.
 func (c *SupertonicClient) IsAvailable() bool {
 	c.checkOnce.Do(func() {
 		// Check if Python and supertonic module are available
-		cmd := exec.Command("python3", "-c", "import supertonic; print('ok')")
-		output, err := cmd.Output()
-		c.available = err == nil && strings.TrimSpace(string(output)) == "ok"
+		// This also determines whether to use uv or direct python3
+		name, args, useUV := getPythonCommand()
+		c.useUV = useUV
+
+		if useUV {
+			// Already verified via getPythonCommand
+			c.available = true
+		} else {
+			// Try direct python3
+			cmd := exec.Command(name, append(args, "-c", "import supertonic; print('ok')")...)
+			output, err := cmd.Output()
+			c.available = err == nil && strings.TrimSpace(string(output)) == "ok"
+		}
 	})
 	return c.available
 }
@@ -163,7 +189,13 @@ except Exception as e:
     sys.exit(1)
 `, c.config.VoiceStyle)
 
-	cmd := exec.CommandContext(ctx, "python3", "-c", script)
+	// Use uv run python3 if available (for uv-managed environments), otherwise direct python3
+	var cmd *exec.Cmd
+	if c.useUV {
+		cmd = exec.CommandContext(ctx, "uv", "run", "python3", "-c", script)
+	} else {
+		cmd = exec.CommandContext(ctx, "python3", "-c", script)
+	}
 	c.currentCmd = cmd
 
 	// Pass text via stdin to avoid injection issues
