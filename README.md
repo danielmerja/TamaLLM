@@ -59,9 +59,10 @@ go run ./cmd/tamallm --no-llm
 
 Press `d` to toggle debug mode, which displays:
 - **LLM Enabled/Pending/Auto status** - Shows if LLM is active and processing
-- **TTS Enabled** - Shows if Text-to-Speech is active
+- **TTS status** - Shows TTS availability and any errors (e.g., "Available (via python3, voice: M2)" or "Unavailable: supertonic not found")
 - **Last LLM Input** - The action that triggered the LLM request
 - **Last LLM Output** - The pet's message from the LLM
+- **Pet Said** - The current pet message being displayed
 - **Age and Stage** - Pet's current age and life stage
 - **Care Score** - Running average of care quality
 - **Suggested Action** - (Auto mode only) The next recommended action
