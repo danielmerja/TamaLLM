@@ -161,29 +161,15 @@ func TestSupertonicClient_InvalidVoiceStyleDefaultsToF3(t *testing.T) {
 	}
 }
 
-func TestGetPythonCommand(t *testing.T) {
-	// This test just verifies the function returns valid values
-	// The actual behavior depends on whether uv is installed
-	name, args, useUV := getPythonCommand()
+func TestCheckSupertonic(t *testing.T) {
+	// This test just verifies the function returns consistent values
+	// The actual behavior depends on whether uv and/or supertonic are installed
+	available, useUV := checkSupertonic()
 
-	if name == "" {
-		t.Error("Expected non-empty command name")
-	}
-
-	if useUV {
-		if name != "uv" {
-			t.Errorf("Expected name to be 'uv' when useUV is true, got %q", name)
-		}
-		if len(args) < 2 || args[0] != "run" || args[1] != "python3" {
-			t.Errorf("Expected args to be ['run', 'python3'] when useUV is true, got %v", args)
-		}
-	} else {
-		if name != "python3" {
-			t.Errorf("Expected name to be 'python3' when useUV is false, got %q", name)
-		}
-		if len(args) != 0 {
-			t.Errorf("Expected empty args when useUV is false, got %v", args)
-		}
+	// If available, useUV should be either true or false
+	// If not available, useUV should be false
+	if !available && useUV {
+		t.Error("useUV should be false when supertonic is not available")
 	}
 }
 
@@ -195,8 +181,8 @@ func TestSupertonicClient_UseUVFlag(t *testing.T) {
 	// Call IsAvailable to set useUV flag
 	_ = client.IsAvailable()
 
-	// Verify the useUV flag matches what getPythonCommand returns
-	_, _, expectedUseUV := getPythonCommand()
+	// Verify the useUV flag matches what checkSupertonic returns
+	_, expectedUseUV := checkSupertonic()
 	if client.useUV != expectedUseUV {
 		t.Errorf("Expected useUV to be %v, got %v", expectedUseUV, client.useUV)
 	}

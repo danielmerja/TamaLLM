@@ -94,19 +94,25 @@ func isValidVoiceStyle(style string) bool {
 	return validStyles[style]
 }
 
-// getPythonCommand returns the command and args to run Python.
-// It checks if uv is available and the supertonic module is accessible via uv,
-// which handles uv-managed virtual environments (created with "uv venv" and "uv pip install").
-func getPythonCommand() (name string, args []string, useUV bool) {
-	// First, try uv run python3 (handles uv-managed environments)
+// checkSupertonic checks if supertonic is available and determines the Python command to use.
+// It tries uv run python3 first (for uv-managed environments), then falls back to direct python3.
+// Returns (available, useUV).
+func checkSupertonic() (available bool, useUV bool) {
+	// First, try uv run python3 (handles uv-managed environments created with "uv venv" and "uv pip install")
 	cmd := exec.Command("uv", "run", "python3", "-c", "import supertonic; print('ok')")
 	output, err := cmd.Output()
 	if err == nil && strings.TrimSpace(string(output)) == "ok" {
-		return "uv", []string{"run", "python3"}, true
+		return true, true
 	}
 
 	// Fall back to direct python3
-	return "python3", []string{}, false
+	cmd = exec.Command("python3", "-c", "import supertonic; print('ok')")
+	output, err = cmd.Output()
+	if err == nil && strings.TrimSpace(string(output)) == "ok" {
+		return true, false
+	}
+
+	return false, false
 }
 
 // IsAvailable checks if Supertonic is installed and available.
@@ -114,18 +120,7 @@ func (c *SupertonicClient) IsAvailable() bool {
 	c.checkOnce.Do(func() {
 		// Check if Python and supertonic module are available
 		// This also determines whether to use uv or direct python3
-		name, args, useUV := getPythonCommand()
-		c.useUV = useUV
-
-		if useUV {
-			// Already verified via getPythonCommand
-			c.available = true
-		} else {
-			// Try direct python3
-			cmd := exec.Command(name, append(args, "-c", "import supertonic; print('ok')")...)
-			output, err := cmd.Output()
-			c.available = err == nil && strings.TrimSpace(string(output)) == "ok"
-		}
+		c.available, c.useUV = checkSupertonic()
 	})
 	return c.available
 }
