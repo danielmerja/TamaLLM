@@ -160,3 +160,30 @@ func TestSupertonicClient_InvalidVoiceStyleDefaultsToF3(t *testing.T) {
 		t.Errorf("Expected voice style to default to F3, got %q", client.config.VoiceStyle)
 	}
 }
+
+func TestCheckSupertonic(t *testing.T) {
+	// This test just verifies the function returns consistent values
+	// The actual behavior depends on whether uv and/or supertonic are installed
+	available, useUV := checkSupertonic()
+
+	// If available, useUV should be either true or false
+	// If not available, useUV should be false
+	if !available && useUV {
+		t.Error("useUV should be false when supertonic is not available")
+	}
+}
+
+func TestSupertonicClient_UseUVFlag(t *testing.T) {
+	config := DefaultConfig()
+	config.Enabled = true
+	client := NewSupertonicClient(config)
+
+	// Call IsAvailable to set useUV flag
+	_ = client.IsAvailable()
+
+	// Verify the useUV flag matches what checkSupertonic returns
+	_, expectedUseUV := checkSupertonic()
+	if client.useUV != expectedUseUV {
+		t.Errorf("Expected useUV to be %v, got %v", expectedUseUV, client.useUV)
+	}
+}
