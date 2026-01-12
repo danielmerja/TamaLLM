@@ -380,22 +380,19 @@ func cleanTextForSpeech(text string) string {
 	return strings.TrimSpace(result)
 }
 
+// placeholderTexts contains meaningless placeholder patterns that shouldn't be spoken.
+// Using a map for O(1) lookup.
+var placeholderTexts = map[string]bool{
+	"...":    true,
+	"..":     true,
+	".":      true,
+	"(none)": true,
+	"":       true,
+}
+
 // isPlaceholderText checks if the text is a meaningless placeholder that shouldn't be spoken.
 func isPlaceholderText(text string) bool {
-	// Common placeholder patterns that indicate empty/failed LLM responses
-	placeholders := []string{
-		"...",
-		"..",
-		".",
-		"(none)",
-		"",
-	}
-	for _, p := range placeholders {
-		if text == p {
-			return true
-		}
-	}
-	return false
+	return placeholderTexts[text]
 }
 
 // escapeForPython escapes a string for use in a Python triple-quoted string.
