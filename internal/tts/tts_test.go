@@ -164,7 +164,7 @@ func TestSupertonicClient_InvalidVoiceStyleDefaultsToF3(t *testing.T) {
 func TestCheckSupertonic(t *testing.T) {
 	// This test just verifies the function returns consistent values
 	// The actual behavior depends on whether uv and/or supertonic are installed
-	available, useUV, errMsg := checkSupertonic()
+	available, useUV, pythonCmd, errMsg := checkSupertonic()
 
 	// If available, useUV should be either true or false, errMsg should be empty
 	// If not available, useUV should be false, errMsg should contain info
@@ -177,6 +177,12 @@ func TestCheckSupertonic(t *testing.T) {
 	if !available && errMsg == "" {
 		t.Error("errMsg should contain info when supertonic is not available")
 	}
+	if available && pythonCmd == "" {
+		t.Error("pythonCmd should not be empty when supertonic is available")
+	}
+	if !available && pythonCmd != "" {
+		t.Error("pythonCmd should be empty when supertonic is not available")
+	}
 }
 
 func TestSupertonicClient_UseUVFlag(t *testing.T) {
@@ -188,7 +194,7 @@ func TestSupertonicClient_UseUVFlag(t *testing.T) {
 	_ = client.IsAvailable()
 
 	// Verify the useUV flag matches what checkSupertonic returns
-	_, expectedUseUV, _ := checkSupertonic()
+	_, expectedUseUV, _, _ := checkSupertonic()
 	if client.useUV != expectedUseUV {
 		t.Errorf("Expected useUV to be %v, got %v", expectedUseUV, client.useUV)
 	}

@@ -65,7 +65,8 @@ type SupertonicClient struct {
 	available  bool
 	checkOnce  sync.Once
 	currentCmd *exec.Cmd
-	useUV      bool   // whether to use "uv run python3" instead of "python3"
+	useUV      bool   // whether to use "uv run" to invoke python
+	pythonCmd  string // the python command to use (python3 or python)
 	lastError  string // last error message for debugging
 }
 
@@ -98,14 +99,14 @@ func isValidVoiceStyle(style string) bool {
 }
 
 // checkSupertonic checks if supertonic is available and determines the Python command to use.
-// It tries uv run python3 first (for uv-managed environments), then falls back to direct python3.
-// Returns (available, useUV, errorMsg).
-func checkSupertonic() (available bool, useUV bool, errorMsg string) {
+// It tries uv run python3 first (for uv-managed environments), then falls back to direct python3 or python.
+// Returns (available, useUV, pythonCmd, errorMsg).
+func checkSupertonic() (available bool, useUV bool, pythonCmd string, errorMsg string) {
 	// First, try uv run python3 (handles uv-managed environments created with "uv venv" and "uv pip install")
 	cmd := exec.Command("uv", "run", "python3", "-c", "import supertonic; print('ok')")
 	output, err := cmd.Output()
 	if err == nil && strings.TrimSpace(string(output)) == "ok" {
-		return true, true, ""
+		return true, true, "python3", ""
 	}
 	uvError := ""
 	if err != nil {
@@ -116,7 +117,7 @@ func checkSupertonic() (available bool, useUV bool, errorMsg string) {
 	cmd = exec.Command("python3", "-c", "import supertonic; print('ok')")
 	output, err = cmd.Output()
 	if err == nil && strings.TrimSpace(string(output)) == "ok" {
-		return true, false, ""
+		return true, false, "python3", ""
 	}
 	python3Error := ""
 	if err != nil {
@@ -127,19 +128,23 @@ func checkSupertonic() (available bool, useUV bool, errorMsg string) {
 	cmd = exec.Command("python", "-c", "import supertonic; print('ok')")
 	output, err = cmd.Output()
 	if err == nil && strings.TrimSpace(string(output)) == "ok" {
-		return true, false, ""
+		return true, false, "python", ""
+	}
+	pythonError := ""
+	if err != nil {
+		pythonError = err.Error()
 	}
 
 	// Build error message with details about what was tried
-	return false, false, fmt.Sprintf("supertonic not found (tried: uv run python3 [%s], python3 [%s])", uvError, python3Error)
+	return false, false, "", fmt.Sprintf("supertonic not found (tried: uv run python3 [%s], python3 [%s], python [%s])", uvError, python3Error, pythonError)
 }
 
 // IsAvailable checks if Supertonic is installed and available.
 func (c *SupertonicClient) IsAvailable() bool {
 	c.checkOnce.Do(func() {
 		// Check if Python and supertonic module are available
-		// This also determines whether to use uv or direct python3
-		c.available, c.useUV, c.lastError = checkSupertonic()
+		// This also determines whether to use uv or direct python/python3
+		c.available, c.useUV, c.pythonCmd, c.lastError = checkSupertonic()
 	})
 	return c.available
 }
@@ -203,12 +208,16 @@ except Exception as e:
     sys.exit(1)
 `, c.config.VoiceStyle)
 
-	// Use uv run python3 if available (for uv-managed environments), otherwise direct python3
+	// Use uv run if available (for uv-managed environments), otherwise direct python/python3
 	var cmd *exec.Cmd
+	pythonCmd := c.pythonCmd
+	if pythonCmd == "" {
+		pythonCmd = "python3" // fallback
+	}
 	if c.useUV {
-		cmd = exec.CommandContext(ctx, "uv", "run", "python3", "-c", script)
+		cmd = exec.CommandContext(ctx, "uv", "run", pythonCmd, "-c", script)
 	} else {
-		cmd = exec.CommandContext(ctx, "python3", "-c", script)
+		cmd = exec.CommandContext(ctx, pythonCmd, "-c", script)
 	}
 	c.currentCmd = cmd
 
@@ -263,9 +272,9 @@ func (c *SupertonicClient) StatusInfo() string {
 	// Trigger availability check if not done yet
 	available := c.IsAvailable()
 	if available {
-		method := "python3"
+		method := c.pythonCmd
 		if c.useUV {
-			method = "uv run python3"
+			method = "uv run " + c.pythonCmd
 		}
 		return fmt.Sprintf("Available (via %s, voice: %s)", method, c.config.VoiceStyle)
 	}
