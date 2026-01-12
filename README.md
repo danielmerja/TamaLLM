@@ -55,6 +55,17 @@ go run ./cmd/tamallm --no-llm
 | `d` | Toggle debug mode |
 | `q` | Quit (auto-saves) |
 
+### Debug Mode
+
+Press `d` to toggle debug mode, which displays:
+- **LLM Enabled/Pending/Auto status** - Shows if LLM is active and processing
+- **TTS Enabled** - Shows if Text-to-Speech is active
+- **Last LLM Input** - The action that triggered the LLM request
+- **Last LLM Output** - The pet's message from the LLM
+- **Age and Stage** - Pet's current age and life stage
+- **Care Score** - Running average of care quality
+- **Suggested Action** - (Auto mode only) The next recommended action
+
 ## Gameplay
 
 ### Life Stages
@@ -133,6 +144,36 @@ Flags:
   --tick-ms N     Simulation tick interval (default: 1000)
   --no-llm        Run without LLM (use canned messages)
   --auto          Start with LLM auto mode enabled
+  --tts           Enable Text-to-Speech (requires Supertonic-2)
+  --tts-voice     TTS voice style (M1-M5, F1-F5, default: F3)
+```
+
+### Text-to-Speech (Supertonic-2)
+
+TamaLLM supports text-to-speech using the [Supertonic-2](https://huggingface.co/Supertone/supertonic-2) model from Supertone. This allows your pet to "speak" its messages out loud!
+
+#### Setup TTS
+
+1. Install Python 3.8+ and pip
+2. Install the Supertonic package:
+   ```bash
+   pip install supertonic sounddevice soundfile
+   ```
+3. Run with TTS enabled:
+   ```bash
+   go run ./cmd/tamallm --tts
+   ```
+
+#### Voice Styles
+
+| Style | Description |
+|-------|-------------|
+| M1-M5 | Male voices with varying tones |
+| F1-F5 | Female voices with varying tones |
+
+Example with custom voice:
+```bash
+go run ./cmd/tamallm --tts --tts-voice M2
 ```
 
 ### Recommended Models
@@ -162,6 +203,9 @@ TamaLLM/
 │   ├── llm/              # Ollama integration
 │   │   ├── client.go     # API client
 │   │   └── client_test.go
+│   ├── tts/              # Text-to-Speech (Supertonic-2)
+│   │   ├── tts.go        # TTS client
+│   │   └── tts_test.go
 │   ├── storage/          # Save/load
 │   │   ├── storage.go
 │   │   └── storage_test.go

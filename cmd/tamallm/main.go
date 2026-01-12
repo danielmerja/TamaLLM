@@ -21,6 +21,8 @@ func main() {
 	tickMs := flag.Int("tick-ms", 1000, "Simulation tick interval in milliseconds")
 	noLLM := flag.Bool("no-llm", false, "Run without LLM (use canned messages)")
 	autoMode := flag.Bool("auto", false, "Start with LLM auto mode enabled")
+	ttsEnabled := flag.Bool("tts", false, "Enable Text-to-Speech (requires Supertonic-2)")
+	ttsVoice := flag.String("tts-voice", "", "TTS voice style (M1-M5, F1-F5)")
 	flag.Parse()
 
 	// Get configuration from environment/flags
@@ -57,6 +59,12 @@ func main() {
 	}
 	if *autoMode && !*noLLM {
 		config.LLMAutoMode = true
+	}
+	if *ttsEnabled {
+		config.TTSEnabled = true
+	}
+	if *ttsVoice != "" {
+		config.TTSConfig.VoiceStyle = *ttsVoice
 	}
 	config.StartNew = *startNew
 

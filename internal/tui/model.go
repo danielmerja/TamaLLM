@@ -15,6 +15,7 @@ import (
 	"github.com/danielmerja/TamaLLM/internal/game"
 	"github.com/danielmerja/TamaLLM/internal/llm"
 	"github.com/danielmerja/TamaLLM/internal/storage"
+	"github.com/danielmerja/TamaLLM/internal/tts"
 )
 
 // Screen represents the current screen being displayed.
@@ -41,6 +42,7 @@ type Model struct {
 	// Core components
 	engine  *game.Engine
 	llm     llm.Client
+	tts     tts.Client
 	storage *storage.Storage
 
 	// UI state
@@ -83,6 +85,9 @@ type Model struct {
 	llmAutoMode    bool
 	lastLLMAction  int64
 
+	// TTS config
+	ttsEnabled     bool
+
 	// Error state
 	errorMessage string
 }
@@ -93,6 +98,8 @@ type Config struct {
 	LLMEnabled   bool
 	LLMAutoMode  bool
 	LLMConfig    llm.Config
+	TTSEnabled   bool
+	TTSConfig    tts.Config
 	StartNew     bool
 }
 
@@ -103,6 +110,8 @@ func DefaultConfig() Config {
 		LLMEnabled:   true,
 		LLMAutoMode:  false,
 		LLMConfig:    llm.DefaultConfig(),
+		TTSEnabled:   false,
+		TTSConfig:    tts.DefaultConfig(),
 		StartNew:     false,
 	}
 }
@@ -130,9 +139,20 @@ func New(config Config, store *storage.Storage) Model {
 		llmClient = llm.NewMockClient()
 	}
 
+	// Initialize TTS client
+	var ttsClient tts.Client
+	if config.TTSEnabled {
+		ttsConfig := config.TTSConfig
+		ttsConfig.Enabled = true
+		ttsClient = tts.NewSupertonicClient(ttsConfig)
+	} else {
+		ttsClient = tts.NewMockClient()
+	}
+
 	m := Model{
 		storage:       store,
 		llm:           llmClient,
+		tts:           ttsClient,
 		screen:        ScreenMain,
 		hungerBar:     hungerBar,
 		happinessBar:  happinessBar,
@@ -144,6 +164,7 @@ func New(config Config, store *storage.Storage) Model {
 		saveDebounce:  5 * time.Second,
 		llmEnabled:    config.LLMEnabled,
 		llmAutoMode:   config.LLMAutoMode,
+		ttsEnabled:    config.TTSEnabled,
 		petMessage:    "...",
 	}
 
@@ -222,6 +243,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Request LLM message periodically
 			if !m.llmPending && m.engine.State.Age%10 == 0 {
+				m.llmPending = true
+				m.lastLLMReq = ""
 				cmds = append(cmds, m.requestLLMMessage(""))
 			}
 
@@ -233,6 +256,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					success, result := m.engine.RequestAction(suggested)
 					if success {
 						m.statusMessage = fmt.Sprintf("[AUTO] %s: %s", suggested, result)
+						m.llmPending = true
+						m.lastLLMReq = suggested
 						cmds = append(cmds, m.requestLLMMessage(suggested))
 					}
 				}
@@ -268,6 +293,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.petMessage = msg.message
 			m.lastLLMResp = msg.message
+			// Speak the message via TTS if enabled
+			if m.ttsEnabled && m.tts != nil {
+				m.tts.SpeakAsync(msg.message)
+			}
 		}
 
 	case progress.FrameMsg:
@@ -347,6 +376,8 @@ func (m Model) updateNewPetScreen(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.engine = game.NewEngine(state)
 		m.screen = ScreenMain
 		m.petMessage = "Hello! I'm " + name + "! Nice to meet you!"
+		m.llmPending = true
+		m.lastLLMReq = "hatched"
 		return m, tea.Batch(m.scheduleTick(), m.save(), m.requestLLMMessage("hatched"))
 
 	case tea.KeyEsc:
@@ -433,6 +464,8 @@ func (m Model) updateMinigameScreen(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, keys.Back):
 		m.screen = ScreenMain
+		m.llmPending = true
+		m.lastLLMReq = "finished playing"
 		return m, m.requestLLMMessage("finished playing")
 	}
 
@@ -540,6 +573,8 @@ func (m Model) executeMenuAction(item menuItem) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	m.llmPending = true
+	m.lastLLMReq = string(item.action)
 	return m, tea.Batch(m.save(), m.requestLLMMessage(string(item.action)))
 }
 
@@ -564,8 +599,11 @@ func (m Model) requestLLMMessage(action string) tea.Cmd {
 		return nil
 	}
 
-	m.llmPending = true
-	m.lastLLMReq = action
+	// Note: This method uses a value receiver because it follows Bubble Tea patterns
+	// where the Model is copied on each Update cycle. The caller must set m.llmPending
+	// and m.lastLLMReq before calling this function because state changes here won't
+	// persist. This design is intentional to maintain consistency with Bubble Tea's
+	// message-passing architecture.
 
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
