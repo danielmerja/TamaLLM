@@ -2,7 +2,8 @@
 
 A Tamagotchi-like terminal game with a local LLM "brain" powered by Ollama.
 
-![TamaLLM Screenshot](https://user-images.githubusercontent.com/placeholder/tamallm-screenshot.png)
+<img width="568" height="903" alt="image" src="https://github.com/user-attachments/assets/558260e8-657b-4fce-9a8b-3a9dd29a387c" />
+
 
 ## Features
 
