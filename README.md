@@ -28,7 +28,7 @@ git clone https://github.com/danielmerja/TamaLLM.git
 cd TamaLLM
 
 # Pull the recommended model
-ollama pull llama3.2:1b
+ollama pull qwen3:1.7b
 
 # Build and run
 go run ./cmd/tamallm
@@ -128,7 +128,7 @@ Press `a` or start with `--auto` to enable LLM-driven automatic care:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `llama3.2:1b` | Model to use |
+| `OLLAMA_MODEL` | `qwen3:1.7b` | Model to use |
 | `OLLAMA_TIMEOUT` | `10s` | Request timeout |
 | `OLLAMA_THINK` | `off` | Thinking mode (off/low/medium/high) |
 
@@ -180,9 +180,9 @@ go run ./cmd/tamallm --tts --tts-voice M2
 
 | Model | Size | Notes |
 |-------|------|-------|
-| `llama3.2:1b` | ~1GB | Default, fast, good quality |
-| `llama3.2:3b` | ~2GB | Better responses, still fast |
-| `mistral:7b` | ~4GB | High quality, requires more RAM |
+| `qwen3:1.7b` | ~1.5GB | Default, fast, good quality |
+| `qwen3:4b` | ~2.5GB | Better responses, still fast |
+| `qwen3:8b` | ~5.2GB | High quality, requires more RAM |
 
 ## Development
 
