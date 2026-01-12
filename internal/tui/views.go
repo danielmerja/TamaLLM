@@ -191,7 +191,7 @@ func (m Model) renderDebug() string {
 	b.WriteString(fmt.Sprintf("LLM Enabled: %t | Pending: %t\n", m.llmEnabled, m.llmPending))
 	b.WriteString(fmt.Sprintf("Last Request: %s\n", m.lastLLMReq))
 	b.WriteString(fmt.Sprintf("Last Response: %s\n", m.lastLLMResp))
-	b.WriteString(fmt.Sprintf("Tick: %d | Age: %d\n", m.engine.State.Age, m.engine.State.Age))
+	b.WriteString(fmt.Sprintf("Age: %d | Stage: %s\n", m.engine.State.Age, m.engine.State.Stage))
 	b.WriteString(fmt.Sprintf("Care Score: %.1f | Sickness Events: %d\n",
 		m.engine.State.AverageCareScore, m.engine.State.TotalSicknessEvents))
 

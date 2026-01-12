@@ -2,6 +2,7 @@ package game
 
 import (
 	"math/rand"
+	"strconv"
 
 	"github.com/danielmerja/TamaLLM/internal/util"
 )
@@ -508,9 +509,9 @@ func (e *Engine) SummarizeState() string {
 	}
 
 	summary := s.Name + " (" + string(s.Stage) + ", " + status + ", " + healthStatus + "): "
-	summary += "hunger=" + itoa(s.Hunger) + ", happy=" + itoa(s.Happiness)
-	summary += ", energy=" + itoa(s.Energy) + ", hygiene=" + itoa(s.Hygiene)
-	summary += ", health=" + itoa(s.Health) + ", discipline=" + itoa(s.Discipline)
+	summary += "hunger=" + strconv.Itoa(s.Hunger) + ", happy=" + strconv.Itoa(s.Happiness)
+	summary += ", energy=" + strconv.Itoa(s.Energy) + ", hygiene=" + strconv.Itoa(s.Hygiene)
+	summary += ", health=" + strconv.Itoa(s.Health) + ", discipline=" + strconv.Itoa(s.Discipline)
 
 	alerts := s.GetAlerts()
 	if len(alerts) > 0 {
@@ -525,16 +526,6 @@ func (e *Engine) SummarizeState() string {
 	}
 
 	return summary
-}
-
-func itoa(i int) string {
-	if i < 0 {
-		return "-" + itoa(-i)
-	}
-	if i < 10 {
-		return string(rune('0' + i))
-	}
-	return itoa(i/10) + string(rune('0'+i%10))
 }
 
 // RandInt generates a random integer in the range [min, max].
