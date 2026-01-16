@@ -75,7 +75,7 @@ func TestMockClient_SleepingMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if msg != "Zzz... *mumbles softly* ...dreaming of playing with you... such nice dreams... 💤" {
+	if msg != "Zzz... *mumbles in sleep* ...having such nice dreams about playing with you... 💤" {
 		t.Errorf("Expected sleeping message, got: %s", msg)
 	}
 }
@@ -91,7 +91,7 @@ func TestMockClient_SickMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if msg != "*sniffles and looks up with tired eyes* I don't feel so good today... but having you here makes me feel a little better. Could you maybe help me feel better? 🤒" {
+	if msg != "*sniffles* I don't feel so good today... but I'm glad you're here with me. Could you maybe give me some medicine? It would really help! 🤒" {
 		t.Errorf("Expected sick message, got: %s", msg)
 	}
 }
@@ -107,7 +107,7 @@ func TestMockClient_HungryMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if msg != "*stomach growls loudly* Oh my, I'm getting really hungry! I've been thinking about food all day. Do you have anything yummy for me to eat? 🍽️" {
+	if msg != "*tummy rumbles loudly* Oh my, I'm getting quite hungry! I've been thinking about food all day... do you have any yummy meals for me? 🍽️" {
 		t.Errorf("Expected hungry message, got: %s", msg)
 	}
 }
@@ -123,7 +123,7 @@ func TestMockClient_TiredMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if msg != "*yawns widely and eyes droop* I'm feeling so sleepy... It's been quite a day! Maybe we could rest together for a while? That would be really nice... 😴" {
+	if msg != "*yawns widely* I'm feeling so sleepy... It's been such a busy day! Maybe we could rest together for a bit? That would be really nice... 😴" {
 		t.Errorf("Expected tired message, got: %s", msg)
 	}
 }
@@ -139,7 +139,7 @@ func TestMockClient_SadMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if msg != "*looks up with hopeful eyes* Hey... I've been feeling a bit lonely lately. Would you like to play with me? Or maybe just spend some time together? I really enjoy being with you! 🥺" {
+	if msg != "*looks up with hopeful eyes* Hey... I've been feeling a bit lonely. Would you like to play with me? Or maybe we could just hang out together? I really enjoy spending time with you! 🥺" {
 		t.Errorf("Expected sad message, got: %s", msg)
 	}
 }

@@ -593,21 +593,21 @@ func NewMockClient() *MockClient {
 
 // GetPetMessage returns a canned message.
 func (m *MockClient) GetPetMessage(ctx context.Context, state *game.State, action string, engine ToolExecutor) (string, error) {
-	// Select message based on state
+	// Select message based on state - uses same messages as generateFallbackMessage for consistency
 	if state.IsSleeping {
-		return "Zzz... *mumbles softly* ...dreaming of playing with you... such nice dreams... 💤", nil
+		return "Zzz... *mumbles in sleep* ...having such nice dreams about playing with you... 💤", nil
 	}
 	if state.IsSick {
-		return "*sniffles and looks up with tired eyes* I don't feel so good today... but having you here makes me feel a little better. Could you maybe help me feel better? 🤒", nil
+		return "*sniffles* I don't feel so good today... but I'm glad you're here with me. Could you maybe give me some medicine? It would really help! 🤒", nil
 	}
 	if state.Hunger < 30 {
-		return "*stomach growls loudly* Oh my, I'm getting really hungry! I've been thinking about food all day. Do you have anything yummy for me to eat? 🍽️", nil
+		return "*tummy rumbles loudly* Oh my, I'm getting quite hungry! I've been thinking about food all day... do you have any yummy meals for me? 🍽️", nil
 	}
 	if state.Energy < 30 {
-		return "*yawns widely and eyes droop* I'm feeling so sleepy... It's been quite a day! Maybe we could rest together for a while? That would be really nice... 😴", nil
+		return "*yawns widely* I'm feeling so sleepy... It's been such a busy day! Maybe we could rest together for a bit? That would be really nice... 😴", nil
 	}
 	if state.Happiness < 30 {
-		return "*looks up with hopeful eyes* Hey... I've been feeling a bit lonely lately. Would you like to play with me? Or maybe just spend some time together? I really enjoy being with you! 🥺", nil
+		return "*looks up with hopeful eyes* Hey... I've been feeling a bit lonely. Would you like to play with me? Or maybe we could just hang out together? I really enjoy spending time with you! 🥺", nil
 	}
 
 	// Cycle through canned messages
