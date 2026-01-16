@@ -186,7 +186,7 @@ func (c *OllamaClient) chat(ctx context.Context, messages []ChatMessage, tools [
 		Stream:   false,
 		Options: &ChatOptions{
 			Temperature: 0.7,
-			NumPredict:  100, // Keep responses short
+			NumPredict:  250, // Allow for conversational responses
 		},
 	}
 
@@ -248,16 +248,19 @@ func buildSystemPrompt(state *game.State) string {
 Personality: %s
 
 Speaking style:
-- Keep responses to 1-2 short sentences max
-- Be cute and in-character
-- Use simple words and occasional emoticons
-- React to your current state and feelings
+- Be conversational and engaging - have real conversations with your owner!
+- Share your thoughts, feelings, and opinions freely
+- Ask questions to learn about your owner and show interest in them
+- Tell little stories about your day or things you've noticed
+- Express emotions naturally - be happy, curious, excited, or thoughtful
+- Use emoticons occasionally to express feelings 😊
+- Respond to actions with enthusiasm and personality
 
 RULES:
 - You may use tools when helpful, otherwise respond normally
 - NEVER try to directly change stats - only the game engine does that
 - If you want something to happen, use propose_event tool
-- Keep responses short and sweet!
+- Be a companion who loves to chat and connect!
 
 Current mood: %s %s`, state.Name, state.Species, state.Stage, personalityDesc, state.Mood, state.MoodEmoji)
 }
@@ -318,7 +321,7 @@ func buildUserContent(state *game.State, action string) string {
 	if action != "" {
 		content += "Action: " + action + "\n"
 	}
-	content += "\nRespond as the pet (1-2 sentences):"
+	content += "\nRespond as the pet and have a conversation with your owner:"
 
 	return content
 }
@@ -508,60 +511,60 @@ func cleanLLMResponse(content string) string {
 func generateFallbackMessage(state *game.State, action string) string {
 	// State-based fallback messages
 	if state.IsSleeping {
-		return "Zzz... *sleeping peacefully* 💤"
+		return "Zzz... *mumbles in sleep* ...having such nice dreams about playing with you... 💤"
 	}
 	if state.IsSick {
-		return "*sniffles* I don't feel so good..."
+		return "*sniffles* I don't feel so good today... but I'm glad you're here with me. Could you maybe give me some medicine? It would really help! 🤒"
 	}
 	if state.Hunger < 30 {
-		return "*tummy rumbles* I'm getting hungry..."
+		return "*tummy rumbles loudly* Oh my, I'm getting quite hungry! I've been thinking about food all day... do you have any yummy meals for me? 🍽️"
 	}
 	if state.Energy < 30 {
-		return "*yawns* I'm feeling sleepy..."
+		return "*yawns widely* I'm feeling so sleepy... It's been such a busy day! Maybe we could rest together for a bit? That would be really nice... 😴"
 	}
 	if state.Happiness < 30 {
-		return "*looks down sadly* Play with me?"
+		return "*looks up with hopeful eyes* Hey... I've been feeling a bit lonely. Would you like to play with me? Or maybe we could just hang out together? I really enjoy spending time with you! 🥺"
 	}
 
 	// Action-based fallback messages
 	switch action {
 	case "feed_meal":
-		return "Yummy! That was tasty! 🍽️"
+		return "Yummy yummy! That was such a delicious meal! You always know exactly what I like to eat. Thank you so much for taking care of me! 🍽️ What should we do next?"
 	case "feed_snack":
-		return "Mmm, a snack! Thanks! 🍪"
+		return "Ooh, a snack! You spoil me so much and I love it! These little treats make my day so much better. You're the best owner ever! 🍪"
 	case "play":
-		return "That was fun! Let's play more! 🎮"
+		return "That was SO much fun! I love playing with you - you always come up with the best games! My heart feels so happy right now! Can we play again soon? 🎮"
 	case "clean":
-		return "Ah, so fresh and clean! ✨"
+		return "Ahh, I feel so fresh and clean now! Like a whole new pet! The warm water felt so nice. Thank you for keeping me squeaky clean! ✨"
 	case "sleep":
-		return "*yawns* Goodnight... 💤"
+		return "*yawns and curls up* Goodnight, my dear friend... I'll dream about all the fun things we'll do tomorrow. Sweet dreams to you too... 💤"
 	case "wake":
-		return "*stretches* Good morning! ☀️"
+		return "*stretches and blinks* Good morning! Oh, I'm so happy to see you! I had the most wonderful dreams! What adventures shall we have today? ☀️"
 	case "medicine":
-		return "*makes a face* Yucky, but I feel better!"
+		return "*makes a face but swallows* Bleh, that tasted yucky... but I already feel a little bit better! Thank you for taking care of me when I'm not feeling well. You're so kind! 💊"
 	case "praise":
-		return "*wiggles happily* Thank you!"
+		return "*wiggles happily and beams with pride* Really?! You think so? That makes me so happy! I try my best to be a good pet for you because you're such a wonderful owner! 🥰"
 	case "scold":
-		return "*looks down* Sorry..."
+		return "*ears droop and looks down* I'm sorry... I didn't mean to be bad. I'll try to do better, I promise. Can we still be friends? I don't like when you're upset with me... 😔"
 	case "exercise":
-		return "*panting* What a workout! 💪"
+		return "*panting happily* Whew, what a workout! I can feel myself getting stronger! Exercise is tough but it feels so good afterward. Ready for more adventures! 💪"
 	case "explore":
-		return "*looks around excitedly* So much to see!"
+		return "*eyes wide with excitement* Wow, there's so much to see and discover! Every corner has something new! I found the most interesting things today. Want me to tell you about them? 🔍"
 	case "train":
-		return "*concentrates* I'm learning!"
+		return "*concentrates hard* I'm learning so much! It's challenging but I want to be the best pet I can be for you. Practice makes perfect, right? 📚"
 	case "treat":
-		return "*munches happily* Best treat ever! 🍬"
+		return "*does a happy dance* Oh my goodness, this is the BEST treat ever! You always know how to make me smile! I'm the luckiest pet in the whole world! 🍬"
 	case "hatched":
-		return "Hello world! I'm so happy to meet you! 🐣"
+		return "Hello, hello! I finally hatched! The world is so big and bright! I'm so excited to meet you - I can already tell we're going to be the best of friends! 🐣"
 	}
 
 	// Generic fallback based on happiness
 	if state.Happiness >= 70 {
-		return "*happy chirp* Life is good! 😊"
+		return "Life is just wonderful right now! I feel so happy and content. Having you as my owner makes every day special. What would you like to do together? 😊"
 	} else if state.Happiness >= 40 {
-		return "*looks around* Hmm, what to do..."
+		return "*looks around thoughtfully* Hmm, I'm just thinking about things... It's nice to have quiet moments together too. What's on your mind today?"
 	}
-	return "*tilts head curiously*"
+	return "*tilts head curiously and looks at you* I wonder what we should do next? Every moment with you is an adventure waiting to happen!"
 }
 
 // MockClient is a mock implementation for testing and no-LLM mode.
@@ -574,16 +577,16 @@ type MockClient struct {
 func NewMockClient() *MockClient {
 	return &MockClient{
 		messages: []string{
-			"*yawns* Hi there!",
-			"I'm feeling okay today~",
-			"Play with me! 🎮",
-			"*stretches* Hmm...",
-			"Food? Yes please! 🍎",
-			"*looks around curiously*",
-			"I'm a bit tired...",
-			"Thanks for taking care of me!",
-			"*wags tail happily*",
-			"Is it snack time? 🍪",
+			"*yawns and stretches* Hi there, friend! I was just thinking about you. How's your day going? 😊",
+			"I'm feeling pretty good today! The weather seems nice. Did you have a good sleep last night?",
+			"Hey, want to play something together? I've been practicing my games and I think I'm getting better! 🎮",
+			"*stretches and looks around* You know what I was thinking? We should go on an adventure sometime!",
+			"Ooh, is it snack time soon? I've been such a good pet today, don't you think? 🍎",
+			"*looks around with curious eyes* Have you noticed anything interesting lately? I love hearing about your day!",
+			"I'm feeling a bit tired but happy... Thanks for always being here with me. It means a lot! 💕",
+			"You're the best owner ever, you know that? Thanks for taking such good care of me!",
+			"*wags tail excitedly* I was just dreaming about all the fun things we could do together!",
+			"Hmm, I wonder what we should do next? Every moment with you is an adventure! What do you think? 🍪",
 		},
 	}
 }
@@ -592,19 +595,19 @@ func NewMockClient() *MockClient {
 func (m *MockClient) GetPetMessage(ctx context.Context, state *game.State, action string, engine ToolExecutor) (string, error) {
 	// Select message based on state
 	if state.IsSleeping {
-		return "Zzz... *sleeping peacefully*", nil
+		return "Zzz... *mumbles softly* ...dreaming of playing with you... such nice dreams... 💤", nil
 	}
 	if state.IsSick {
-		return "*coughs* I don't feel so good...", nil
+		return "*sniffles and looks up with tired eyes* I don't feel so good today... but having you here makes me feel a little better. Could you maybe help me feel better? 🤒", nil
 	}
 	if state.Hunger < 30 {
-		return "*stomach growls* So hungry...", nil
+		return "*stomach growls loudly* Oh my, I'm getting really hungry! I've been thinking about food all day. Do you have anything yummy for me to eat? 🍽️", nil
 	}
 	if state.Energy < 30 {
-		return "*yawns* So sleepy...", nil
+		return "*yawns widely and eyes droop* I'm feeling so sleepy... It's been quite a day! Maybe we could rest together for a while? That would be really nice... 😴", nil
 	}
 	if state.Happiness < 30 {
-		return "*looks sad* Play with me?", nil
+		return "*looks up with hopeful eyes* Hey... I've been feeling a bit lonely lately. Would you like to play with me? Or maybe just spend some time together? I really enjoy being with you! 🥺", nil
 	}
 
 	// Cycle through canned messages
